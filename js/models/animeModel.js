@@ -1,21 +1,172 @@
 // js/models/animeModel.js
+// Modelo de Animes - ACTUALIZADO para usar Jikan API
 
 class AnimeModel {
   constructor() {
     this.animes = [];
+    this.usingAPI = true; // Flag para saber si estamos usando API o datos locales
     this.loadAnimes();
   }
 
+  /**
+   * Cargar animes desde la API o fallback local
+   */
   async loadAnimes() {
     try {
-      const response = await fetch("data/animes.json");
-      this.animes = await response.json();
+      console.log("🔄 Cargando animes desde Jikan API...");
+
+      // Intentar cargar desde la API
+      this.animes = await apiService.getTopAnimes(1);
+
+      if (this.animes && this.animes.length > 0) {
+        console.log("✅ Animes cargados desde API:", this.animes.length);
+        this.usingAPI = true;
+      } else {
+        throw new Error("No se obtuvieron animes de la API");
+      }
     } catch (error) {
-      console.error("Error loading animes:", error);
-      this.animes = this.getFallbackData();
+      console.warn("⚠️ Error cargando desde API, usando datos locales:", error);
+
+      // Fallback a datos locales
+      try {
+        const response = await fetch("data/animes.json");
+        this.animes = await response.json();
+        this.usingAPI = false;
+        console.log("✅ Animes cargados desde JSON local:", this.animes.length);
+      } catch (localError) {
+        console.error("❌ Error cargando datos locales:", localError);
+        this.animes = this.getFallbackData();
+        this.usingAPI = false;
+        console.log("✅ Usando datos de fallback hardcodeados");
+      }
     }
   }
 
+  /**
+   * Recargar animes desde la API
+   */
+  async reloadFromAPI() {
+    console.log("🔄 Recargando desde API...");
+    await this.loadAnimes();
+    return this.animes;
+  }
+
+  /**
+   * Cargar más animes (paginación)
+   * @param {number} page - Número de página
+   */
+  async loadMoreAnimes(page = 1) {
+    if (!this.usingAPI) {
+      console.log("📝 No se puede cargar más, usando datos locales");
+      return this.animes;
+    }
+
+    try {
+      console.log(`🔄 Cargando página ${page} de animes...`);
+      const newAnimes = await apiService.getTopAnimes(page);
+
+      if (newAnimes && newAnimes.length > 0) {
+        // REEMPLAZAR los animes con la nueva página
+        this.animes = newAnimes;
+        console.log(`✅ Cargados ${newAnimes.length} animes (página ${page})`);
+      }
+
+      return this.animes;
+    } catch (error) {
+      console.error("❌ Error cargando más animes:", error);
+      return this.animes;
+    }
+  }
+
+  /**
+   * Buscar animes por término
+   * @param {string} searchTerm - Término de búsqueda
+   * @returns {Array} - Animes encontrados
+   */
+  async searchAnimes(searchTerm) {
+    if (!searchTerm || searchTerm.trim() === "") {
+      return this.animes;
+    }
+
+    // Si estamos usando API, buscar en la API
+    if (this.usingAPI) {
+      try {
+        console.log(`🔍 Buscando "${searchTerm}" en Jikan API...`);
+        const results = await apiService.searchAnimes(searchTerm, 20);
+        console.log(`✅ Encontrados ${results.length} resultados`);
+        return results;
+      } catch (error) {
+        console.error("❌ Error en búsqueda API:", error);
+        // Fallback a búsqueda local
+      }
+    }
+
+    // Búsqueda local
+    const term = searchTerm.toLowerCase();
+    return this.animes.filter(
+      (anime) =>
+        anime.title.toLowerCase().includes(term) ||
+        anime.genre.toLowerCase().includes(term)
+    );
+  }
+
+  /**
+   * Obtener todos los animes
+   * @returns {Array}
+   */
+  getAllAnimes() {
+    return this.animes;
+  }
+
+  /**
+   * Obtener anime por ID
+   * @param {number} id - ID del anime
+   * @returns {Object|null}
+   */
+  getAnimeById(id) {
+    return this.animes.find((anime) => anime.id === parseInt(id));
+  }
+
+  /**
+   * Obtener detalles completos de un anime desde la API
+   * @param {number} id - ID del anime
+   * @returns {Promise<Object>}
+   */
+  async getAnimeDetails(id) {
+    if (this.usingAPI) {
+      try {
+        console.log(`🔍 Obteniendo detalles del anime ${id} desde API...`);
+        const details = await apiService.getAnimeDetails(id);
+        if (details) {
+          console.log("✅ Detalles obtenidos desde API");
+          return details;
+        }
+      } catch (error) {
+        console.error("❌ Error obteniendo detalles:", error);
+      }
+    }
+
+    // Fallback a datos locales
+    return this.getAnimeById(id);
+  }
+
+  /**
+   * Filtrar animes por género
+   * @param {string} genre - Género a filtrar
+   * @returns {Array}
+   */
+  getAnimesByGenre(genre) {
+    if (!genre) return this.animes;
+
+    return this.animes.filter((anime) =>
+      anime.genre.toLowerCase().includes(genre.toLowerCase())
+    );
+  }
+
+  /**
+   * Datos de fallback (solo si todo falla)
+   * @returns {Array}
+   */
   getFallbackData() {
     return [
       {
@@ -27,8 +178,7 @@ class AnimeModel {
         rating: "9.0",
         synopsis:
           "La humanidad se encuentra al borde de la extinción debido a unos gigantes humanoides llamados titanes. Eren Yeager se une al Cuerpo de Exploración para luchar contra estos monstruos.",
-        image:
-          "https://via.placeholder.com/280x200/E50914/FFFFFF?text=Attack+on+Titan",
+        image: "https://cdn.myanimelist.net/images/anime/10/47347.jpg",
       },
       {
         id: 2,
@@ -39,8 +189,7 @@ class AnimeModel {
         rating: "8.8",
         synopsis:
           "Monkey D. Luffy explora el Grand Line con su tripulación de piratas en busca del tesoro más grande del mundo conocido como One Piece.",
-        image:
-          "https://via.placeholder.com/280x200/E50914/FFFFFF?text=One+Piece",
+        image: "https://cdn.myanimelist.net/images/anime/6/73245.jpg",
       },
       {
         id: 3,
@@ -51,8 +200,7 @@ class AnimeModel {
         rating: "8.7",
         synopsis:
           "Tanjiro Kamado busca una cura para su hermana convertida en demonio y busca venganza contra el demonio que mató al resto de su familia.",
-        image:
-          "https://via.placeholder.com/280x200/E50914/FFFFFF?text=Demon+Slayer",
+        image: "https://cdn.myanimelist.net/images/anime/1286/99889.jpg",
       },
       {
         id: 4,
@@ -63,36 +211,27 @@ class AnimeModel {
         rating: "9.0",
         synopsis:
           "Light Yagami encuentra un cuaderno sobrenatural que le permite matar a cualquier persona escribiendo su nombre. Decide usarlo para crear un mundo sin crimen.",
-        image:
-          "https://via.placeholder.com/280x200/E50914/FFFFFF?text=Death+Note",
+        image: "https://cdn.myanimelist.net/images/anime/9/9453.jpg",
       },
     ];
   }
 
-  getAllAnimes() {
-    return this.animes;
+  /**
+   * Verificar si está usando API o datos locales
+   * @returns {boolean}
+   */
+  isUsingAPI() {
+    return this.usingAPI;
   }
 
-  getAnimeById(id) {
-    return this.animes.find((anime) => anime.id === parseInt(id));
-  }
-
-  getAnimesByGenre(genre) {
-    if (!genre) return this.animes;
-    return this.animes.filter((anime) =>
-      anime.genre.toLowerCase().includes(genre.toLowerCase())
-    );
-  }
-
-  searchAnimes(searchTerm) {
-    if (!searchTerm) return this.animes;
-    const term = searchTerm.toLowerCase();
-    return this.animes.filter(
-      (anime) =>
-        anime.title.toLowerCase().includes(term) ||
-        anime.genre.toLowerCase().includes(term)
-    );
+  /**
+   * Obtener estado de la fuente de datos
+   * @returns {string}
+   */
+  getDataSource() {
+    return this.usingAPI ? "Jikan API (MyAnimeList)" : "Datos locales";
   }
 }
 
+// Crear instancia global
 const animeModel = new AnimeModel();

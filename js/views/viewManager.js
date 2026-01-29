@@ -1,4 +1,5 @@
 // js/views/viewManager.js
+// ACTUALIZADO con soporte de paginación
 
 class ViewManager {
   constructor() {
@@ -62,9 +63,13 @@ class ViewManager {
         break;
       case "animes":
         await animeController.init();
+        // Inicializar paginación de animes
+        animeController.updatePaginationUI();
         break;
       case "games":
         await gameController.init();
+        // Inicializar paginación de videojuegos
+        gameController.updatePaginationUI();
         break;
     }
   }
@@ -84,13 +89,24 @@ class ViewManager {
       .map((item) => {
         const isAnime = item.episodes !== undefined;
         const controller = isAnime ? "animeController" : "gameController";
+
+        // Para animes, mostrar rating normal; para videojuegos, mostrar metacritic
+        let ratingHTML = "";
+        if (isAnime) {
+          ratingHTML = `<span class="rating">⭐ ${item.rating}</span>`;
+        } else {
+          ratingHTML = item.metacritic
+            ? `<span class="metacritic-score" style="background-color: ${item.metacriticColor}">${item.metacritic}</span>`
+            : '<span class="no-score">N/A</span>';
+        }
+
         return `
                 <div class="catalog-item" onclick="${controller}.showDetails(${item.id})">
                     <img src="${item.image}" alt="${item.title}" class="item-poster">
                     <div class="item-info">
                         <h3>${item.title}</h3>
                         <div class="item-meta">
-                            <span class="rating">⭐ ${item.rating}</span>
+                            ${ratingHTML}
                             <span class="year">${item.year}</span>
                         </div>
                         <p class="genre">${item.genre}</p>
@@ -158,7 +174,7 @@ class ViewManager {
     }
 
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && modal.classList.contains("active")) {
+      if (e.key === "Escape" && modal && modal.classList.contains("active")) {
         this.closeModal();
       }
     });

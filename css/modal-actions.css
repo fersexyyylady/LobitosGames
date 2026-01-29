@@ -1,0 +1,93 @@
+/* css/modal-actions.css */
+/* Estilos adicionales para acciones de modales y botones de listas */
+
+.modal-actions {
+  margin-top: 30px;
+  padding-top: 30px;
+  border-top: 2px solid rgba(104, 9, 229, 0.3);
+}
+
+.modal-actions h3 {
+  color: var(--text-primary);
+  font-size: 20px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.list-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.btn-list {
+  padding: 12px 16px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  border: 2px solid var(--text-secondary);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-list:hover {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(104, 9, 229, 0.4);
+}
+
+.btn-list.active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  box-shadow: 0 0 20px rgba(104, 9, 229, 0.5);
+}
+
+.btn-list.active:hover {
+  background: var(--hover-color);
+}
+
+/* Loading state */
+.loading {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-secondary);
+  font-size: 18px;
+}
+
+.loading p {
+  margin: 0;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .list-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-actions h3 {
+    font-size: 18px;
+  }
+
+  .btn-list {
+    padding: 14px;
+    font-size: 15px;
+  }
+}
