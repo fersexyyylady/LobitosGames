@@ -1,12 +1,12 @@
 // js/controllers/animeController.js
-// Controlador de Animes - ACTUALIZADO para búsqueda con API
+// Controlador de Animes - CON FILTROS EN INGLÉS FUNCIONANDO
 
 class AnimeController {
   constructor() {
     this.model = animeModel;
     this.currentFilter = "";
     this.currentPage = 1;
-    this.totalPages = 10; // Jikan API permite muchas páginas, limitamos a 10
+    this.totalPages = 10;
   }
 
   async init() {
@@ -19,7 +19,6 @@ class AnimeController {
     this.setupFilters();
     this.setupPagination();
 
-    // Mostrar fuente de datos en consola
     console.log("📊 Fuente de datos:", this.model.getDataSource());
   }
 
@@ -42,7 +41,7 @@ class AnimeController {
       .map(
         (anime) => `
             <div class="catalog-item" onclick="animeController.showDetails(${anime.id})">
-                <img src="${anime.image}" alt="${anime.title}" class="item-poster" onerror="this.src='https://via.placeholder.com/280x200/6809e5/FFFFFF?text=No+Image'">
+                <img src="${anime.image}" alt="${anime.title}" class="item-poster">
                 <div class="item-info">
                     <h3>${anime.title}</h3>
                     <div class="item-meta">
@@ -53,7 +52,7 @@ class AnimeController {
                     <button class="play-btn" onclick="event.stopPropagation(); animeController.showDetails(${anime.id})">Ver detalles</button>
                 </div>
             </div>
-        `
+        `,
       )
       .join("");
   }
@@ -69,26 +68,41 @@ class AnimeController {
 
   filterByGenre(genre) {
     this.currentFilter = genre;
-    const filtered = this.model.getAnimesByGenre(genre);
+
+    if (!genre) {
+      // Si no hay filtro, mostrar todos
+      this.renderAnimeGrid(this.model.getAllAnimes());
+      return;
+    }
+
+    // Filtrar animes que contengan el género seleccionado
+    // La API de Jikan devuelve los géneros en inglés
+    const filtered = this.model.getAllAnimes().filter((anime) => {
+      return anime.genre.toLowerCase().includes(genre.toLowerCase());
+    });
+
+    console.log(
+      `🔍 Filtrado por género "${genre}":`,
+      filtered.length,
+      "resultados",
+    );
     this.renderAnimeGrid(filtered);
   }
 
   async search(searchTerm) {
     console.log("🔍 Buscando:", searchTerm);
 
-    // Mostrar indicador de carga
     const grid = document.getElementById("animeGrid");
     if (grid) {
       grid.innerHTML = '<div class="loading"><p>Buscando animes...</p></div>';
     }
 
-    // Buscar (esto puede ser en API o local)
     let results = await this.model.searchAnimes(searchTerm);
 
     // Si hay filtro de género aplicado, filtrar resultados
     if (this.currentFilter) {
       results = results.filter((anime) =>
-        anime.genre.toLowerCase().includes(this.currentFilter.toLowerCase())
+        anime.genre.toLowerCase().includes(this.currentFilter.toLowerCase()),
       );
     }
 
@@ -97,7 +111,6 @@ class AnimeController {
 
   async showDetails(id) {
     try {
-      // Obtener detalles (puede venir de API si está disponible)
       const anime = await this.model.getAnimeDetails(id);
 
       if (!anime) {
@@ -108,7 +121,6 @@ class AnimeController {
       const modal = document.getElementById("detailsModal");
       const modalBody = document.getElementById("modalBody");
 
-      // Construir HTML de detalles
       let detailsHTML = `
         <div class="modal-hero">
           <h2 id="modalTitle">${anime.title}</h2>
@@ -122,7 +134,6 @@ class AnimeController {
           <p><strong>Episodios:</strong> ${anime.episodes || "Desconocido"}</p>
       `;
 
-      // Agregar información adicional si está disponible
       if (anime.status) {
         detailsHTML += `<p><strong>Estado:</strong> ${anime.status}</p>`;
       }
@@ -155,9 +166,9 @@ class AnimeController {
                       onclick="animeController.addToList(${
                         anime.id
                       }, 'favoritos', ${JSON.stringify(anime).replace(
-          /"/g,
-          "&quot;"
-        )})">
+                        /"/g,
+                        "&quot;",
+                      )})">
                 ⭐ Favoritos
               </button>
               <button class="btn-list ${
@@ -166,9 +177,9 @@ class AnimeController {
                       onclick="animeController.addToList(${
                         anime.id
                       }, 'viendo', ${JSON.stringify(anime).replace(
-          /"/g,
-          "&quot;"
-        )})">
+                        /"/g,
+                        "&quot;",
+                      )})">
                 👁️ Viendo
               </button>
               <button class="btn-list ${
@@ -177,9 +188,9 @@ class AnimeController {
                       onclick="animeController.addToList(${
                         anime.id
                       }, 'considerando', ${JSON.stringify(anime).replace(
-          /"/g,
-          "&quot;"
-        )})">
+                        /"/g,
+                        "&quot;",
+                      )})">
                 🤔 Considerando
               </button>
               <button class="btn-list ${
@@ -188,9 +199,9 @@ class AnimeController {
                       onclick="animeController.addToList(${
                         anime.id
                       }, 'completado', ${JSON.stringify(anime).replace(
-          /"/g,
-          "&quot;"
-        )})">
+                        /"/g,
+                        "&quot;",
+                      )})">
                 ✅ Completado
               </button>
               <button class="btn-list ${
@@ -199,9 +210,9 @@ class AnimeController {
                       onclick="animeController.addToList(${
                         anime.id
                       }, 'dropeado', ${JSON.stringify(anime).replace(
-          /"/g,
-          "&quot;"
-        )})">
+                        /"/g,
+                        "&quot;",
+                      )})">
                 ❌ Dropeado
               </button>
             </div>
@@ -221,7 +232,7 @@ class AnimeController {
     if (!userModel.isLoggedIn()) {
       authController.showMessage(
         "Debes iniciar sesión para agregar a tus listas",
-        "error"
+        "error",
       );
       return;
     }
@@ -230,7 +241,6 @@ class AnimeController {
 
     if (result.success) {
       authController.showMessage(`Agregado a ${listType}`, "success");
-      // Recargar el modal para actualizar botones
       this.showDetails(animeId);
     } else {
       authController.showMessage(result.error, "error");
@@ -241,47 +251,33 @@ class AnimeController {
     return this.model.getAllAnimes().slice(0, 4);
   }
 
-  /**
-   * Configurar sistema de paginación
-   */
   setupPagination() {
-    // Los botones se crearán dinámicamente en el HTML
+    // Los botones se crearán dinámicamente
   }
 
-  /**
-   * Cambiar de página
-   * @param {number} page - Número de página
-   */
   async changePage(page) {
     if (page < 1 || page > this.totalPages) return;
 
     this.currentPage = page;
 
-    // Mostrar loading
     const grid = document.getElementById("animeGrid");
     if (grid) {
       grid.innerHTML = '<div class="loading"><p>Cargando página...</p></div>';
     }
 
-    // Cargar animes de la página
     const animes = await this.model.loadMoreAnimes(page);
     this.renderAnimeGrid(animes);
     this.updatePaginationUI();
 
-    // Scroll al inicio de la sección
     document.getElementById("animes").scrollIntoView({ behavior: "smooth" });
   }
 
-  /**
-   * Actualizar UI de paginación
-   */
   updatePaginationUI() {
     const paginationContainer = document.getElementById("animePagination");
     if (!paginationContainer) return;
 
     let paginationHTML = '<div class="pagination">';
 
-    // Botón anterior
     paginationHTML += `
       <button class="pagination-btn" 
               onclick="animeController.changePage(${this.currentPage - 1})"
@@ -290,7 +286,6 @@ class AnimeController {
       </button>
     `;
 
-    // Números de página
     const startPage = Math.max(1, this.currentPage - 2);
     const endPage = Math.min(this.totalPages, this.currentPage + 2);
 
@@ -327,7 +322,6 @@ class AnimeController {
       `;
     }
 
-    // Botón siguiente
     paginationHTML += `
       <button class="pagination-btn" 
               onclick="animeController.changePage(${this.currentPage + 1})"

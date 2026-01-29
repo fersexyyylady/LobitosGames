@@ -1,6 +1,5 @@
 // js/services/apiService.js
 // Servicio para consumir APIs de terceros (Jikan para animes, RAWG para videojuegos)
-// CORREGIDO para funcionar SIN API key
 
 class APIService {
   constructor() {
@@ -8,9 +7,8 @@ class APIService {
     this.jikanBaseURL = "https://api.jikan.moe/v4";
     this.rawgBaseURL = "https://api.rawg.io/api";
 
-    // RAWG API funciona SIN key con límites más bajos
-    // Si quieres obtener una key gratuita: https://rawg.io/apidocs
-    this.rawgApiKey = "9127fc9008cb4f9898d42b7da484b496"; // Dejar vacío para usar sin key
+    // RAWG API Key - CONFIGURADA
+    this.rawgApiKey = "9127fc9008cb4f9898d42b7da484b496";
 
     // Cache para reducir llamadas a las APIs
     this.cache = {
@@ -24,16 +22,14 @@ class APIService {
       rawg: 0,
     };
     this.minInterval = {
-      jikan: 350, // Jikan permite ~3 req/sec, usamos 350ms para estar seguros
-      rawg: 1000, // Sin key, RAWG es más estricto, usar 1 segundo
+      jikan: 350, // Jikan permite ~3 req/sec, usamos 350ms
+      rawg: 200, // Con key, RAWG es más permisivo
     };
 
     console.log("🔧 API Service inicializado");
     console.log(
       "🔑 RAWG API Key:",
-      this.rawgApiKey
-        ? "Configurada ✅"
-        : "No configurada (usando límites gratuitos) ⚠️",
+      this.rawgApiKey ? "Configurada ✅" : "No configurada ⚠️",
     );
   }
 
@@ -183,14 +179,14 @@ class APIService {
         search: query,
         page_size: pageSize,
         exclude_additions: true,
+        key: this.rawgApiKey,
       });
 
-      if (this.rawgApiKey) {
-        params.append("key", this.rawgApiKey);
-      }
-
       const url = `${this.rawgBaseURL}/games?${params.toString()}`;
-      console.log("🔍 Buscando juegos en:", url);
+      console.log(
+        "🔍 Buscando juegos en:",
+        url.replace(this.rawgApiKey, "API_KEY"),
+      );
 
       const response = await fetch(url);
 
@@ -228,21 +224,17 @@ class APIService {
 
       await this.waitForRateLimit("rawg");
 
-      // Filtros: metacritic>50 para juegos reconocidos, exclude_additions para sin DLCs
       const params = new URLSearchParams({
         ordering: "-metacritic",
         metacritic: "50,100",
         page: page,
         page_size: 25,
         exclude_additions: true,
+        key: this.rawgApiKey,
       });
 
-      if (this.rawgApiKey) {
-        params.append("key", this.rawgApiKey);
-      }
-
       const url = `${this.rawgBaseURL}/games?${params.toString()}`;
-      console.log("🔄 Cargando juegos desde:", url);
+      console.log("🔄 Cargando juegos desde RAWG API (página " + page + ")");
 
       const response = await fetch(url);
 
@@ -289,12 +281,7 @@ class APIService {
 
       await this.waitForRateLimit("rawg");
 
-      const params = new URLSearchParams();
-      if (this.rawgApiKey) {
-        params.append("key", this.rawgApiKey);
-      }
-
-      const url = `${this.rawgBaseURL}/games/${id}${params.toString() ? "?" + params.toString() : ""}`;
+      const url = `${this.rawgBaseURL}/games/${id}?key=${this.rawgApiKey}`;
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -344,7 +331,7 @@ class APIService {
       image:
         anime.images?.jpg?.large_image_url ||
         anime.images?.jpg?.image_url ||
-        "https://via.placeholder.com/280x200/6809e5/FFFFFF?text=No+Image",
+        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='200'%3E%3Crect fill='%236809e5' width='280' height='200'/%3E%3Ctext fill='white' x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='20'%3ENo Image%3C/text%3E%3C/svg%3E",
       status: anime.status || "Desconocido",
       studios: anime.studios
         ? anime.studios.map((s) => s.name).join(", ")
@@ -371,7 +358,6 @@ class APIService {
     // Limpiar HTML de la descripción
     const cleanSynopsis = (html) => {
       if (!html) return "Sin descripción disponible";
-      // Crear elemento temporal para limpiar HTML
       const temp = document.createElement("div");
       temp.innerHTML = html;
       return temp.textContent || temp.innerText || "Sin descripción disponible";
@@ -384,13 +370,13 @@ class APIService {
       platform: game.platforms
         ? game.platforms.map((p) => p.platform.name).join(", ")
         : "N/A",
-      platformsData: game.platforms || [], // Guardar datos completos de plataformas
+      platformsData: game.platforms || [],
       genre: game.genres ? game.genres.map((g) => g.name).join(", ") : "N/A",
       rating: game.rating ? game.rating.toFixed(1) : "N/A",
       synopsis: cleanSynopsis(game.description_raw || game.description),
       image:
         game.background_image ||
-        "https://via.placeholder.com/280x200/4b09a0/FFFFFF?text=No+Image",
+        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='200'%3E%3Crect fill='%234b09a0' width='280' height='200'/%3E%3Ctext fill='white' x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='20'%3ENo Image%3C/text%3E%3C/svg%3E",
       metacritic: game.metacritic || null,
       metacriticColor: this.getMetacriticColor(game.metacritic),
       developers: game.developers
@@ -427,9 +413,6 @@ class APIService {
 
     if (timeSinceLastRequest < minInterval) {
       const waitTime = minInterval - timeSinceLastRequest;
-      console.log(
-        `⏳ Esperando ${waitTime}ms para respetar rate limit de ${api}`,
-      );
       await new Promise((resolve) => setTimeout(resolve, waitTime));
     }
 

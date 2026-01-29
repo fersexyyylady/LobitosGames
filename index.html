@@ -1,5 +1,5 @@
 <!-- index.html -->
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
@@ -47,25 +47,28 @@
             data-section="my-lists"
             id="myListsBtn"
             aria-label="Ver mis listas"
-            style="display: none;"
+            style="display: none"
           >
             Mis Listas
           </button>
         </nav>
-        
+
         <!-- Botones de autenticación (cuando no hay sesión) -->
         <div class="auth-buttons" id="authButtons">
           <button class="btn-login" onclick="authController.showLoginModal()">
             Iniciar Sesión
           </button>
-          <button class="btn-register" onclick="authController.showRegisterModal()">
+          <button
+            class="btn-register"
+            onclick="authController.showRegisterModal()"
+          >
             Registrarse
           </button>
         </div>
 
         <!-- Menú de usuario (cuando hay sesión) -->
-        <div class="user-menu" id="userMenu" style="display: none;">
-          <img src="" alt="Avatar" class="user-avatar" id="userAvatar">
+        <div class="user-menu" id="userMenu" style="display: none">
+          <img src="" alt="Avatar" class="user-avatar" id="userAvatar" />
           <span class="username" id="usernameDisplay"></span>
           <button class="btn-logout" onclick="authController.handleLogout()">
             Cerrar Sesión
@@ -186,16 +189,19 @@
                 aria-label="Filtrar por género"
               >
                 <option value="">Todos los géneros</option>
-                <option value="Acción">Acción</option>
-                <option value="Aventura">Aventura</option>
+                <option value="Action">Acción</option>
+                <option value="Adventure">Aventura</option>
                 <option value="Drama">Drama</option>
-                <option value="Fantasía">Fantasía</option>
-                <option value="Comedia">Comedia</option>
+                <option value="Fantasy">Fantasía</option>
+                <option value="Comedy">Comedia</option>
+                <option value="Romance">Romance</option>
+                <option value="Sci-Fi">Ciencia Ficción</option>
+                <option value="Thriller">Thriller</option>
               </select>
             </div>
           </div>
           <div id="animeGrid" class="catalog-grid"></div>
-          
+
           <!-- Paginación de Animes -->
           <div class="pagination-container">
             <div id="animePagination"></div>
@@ -216,15 +222,19 @@
               >
                 <option value="">Todos los géneros</option>
                 <option value="RPG">RPG</option>
-                <option value="Acción">Acción</option>
-                <option value="Aventura">Aventura</option>
-                <option value="Deportes">Deportes</option>
+                <option value="Action">Acción</option>
+                <option value="Adventure">Aventura</option>
                 <option value="Shooter">Shooter</option>
+                <option value="Strategy">Estrategia</option>
+                <option value="Simulation">Simulación</option>
+                <option value="Puzzle">Puzzle</option>
+                <option value="Racing">Carreras</option>
+                <option value="Sports">Deportes</option>
               </select>
             </div>
           </div>
           <div id="gameGrid" class="catalog-grid"></div>
-          
+
           <!-- Paginación de Videojuegos -->
           <div class="pagination-container">
             <div id="gamePagination"></div>
@@ -236,7 +246,7 @@
       <section id="my-lists" class="section">
         <div class="container">
           <h2 class="section-title">Mis Listas</h2>
-          
+
           <div class="lists-container">
             <div class="list-section">
               <h3 class="list-title">
@@ -311,23 +321,34 @@
 
     <!-- Modal de Login -->
     <div id="loginModal" class="modal">
-      <div class="modal-overlay" onclick="authController.closeAuthModals()"></div>
+      <div
+        class="modal-overlay"
+        onclick="authController.closeAuthModals()"
+      ></div>
       <div class="modal-content auth-modal">
-        <button class="modal-close" onclick="authController.closeAuthModals()">×</button>
+        <button class="modal-close" onclick="authController.closeAuthModals()">
+          ×
+        </button>
         <h2>Iniciar Sesión</h2>
         <form id="loginForm" onsubmit="return false;">
           <div class="form-group">
             <label for="loginEmail">Email o Usuario</label>
-            <input type="text" id="loginEmail" required>
+            <input type="text" id="loginEmail" required />
           </div>
           <div class="form-group">
             <label for="loginPassword">Contraseña</label>
-            <input type="password" id="loginPassword" required>
+            <input type="password" id="loginPassword" required />
           </div>
           <button type="submit" class="btn-primary">Iniciar Sesión</button>
           <p class="form-footer">
-            ¿No tienes cuenta? 
-            <a href="#" onclick="authController.closeAuthModals(); authController.showRegisterModal()">
+            ¿No tienes cuenta?
+            <a
+              href="#"
+              onclick="
+                authController.closeAuthModals();
+                authController.showRegisterModal();
+              "
+            >
               Regístrate aquí
             </a>
           </p>
@@ -337,39 +358,50 @@
 
     <!-- Modal de Registro -->
     <div id="registerModal" class="modal">
-      <div class="modal-overlay" onclick="authController.closeAuthModals()"></div>
+      <div
+        class="modal-overlay"
+        onclick="authController.closeAuthModals()"
+      ></div>
       <div class="modal-content auth-modal">
-        <button class="modal-close" onclick="authController.closeAuthModals()">×</button>
+        <button class="modal-close" onclick="authController.closeAuthModals()">
+          ×
+        </button>
         <h2>Registro</h2>
         <form id="registerForm" onsubmit="return false;">
           <div class="form-group">
             <label for="regNombre">Nombre</label>
-            <input type="text" id="regNombre" required>
+            <input type="text" id="regNombre" required />
           </div>
           <div class="form-group">
             <label for="regApellido">Apellido</label>
-            <input type="text" id="regApellido" required>
+            <input type="text" id="regApellido" required />
           </div>
           <div class="form-group">
             <label for="regUsername">Nombre de Usuario</label>
-            <input type="text" id="regUsername" required>
+            <input type="text" id="regUsername" required />
           </div>
           <div class="form-group">
             <label for="regEmail">Email</label>
-            <input type="email" id="regEmail" required>
+            <input type="email" id="regEmail" required />
           </div>
           <div class="form-group">
             <label for="regPassword">Contraseña</label>
-            <input type="password" id="regPassword" required>
+            <input type="password" id="regPassword" required />
           </div>
           <div class="form-group">
             <label for="regConfirmPassword">Confirmar Contraseña</label>
-            <input type="password" id="regConfirmPassword" required>
+            <input type="password" id="regConfirmPassword" required />
           </div>
           <button type="submit" class="btn-primary">Registrarse</button>
           <p class="form-footer">
-            ¿Ya tienes cuenta? 
-            <a href="#" onclick="authController.closeAuthModals(); authController.showLoginModal()">
+            ¿Ya tienes cuenta?
+            <a
+              href="#"
+              onclick="
+                authController.closeAuthModals();
+                authController.showLoginModal();
+              "
+            >
               Inicia sesión aquí
             </a>
           </p>
@@ -414,12 +446,12 @@
       </div>
     </footer>
 
-    <!-- Scripts -->
+    <!-- Scripts - ORDEN CORRECTO ES CRUCIAL -->
+    <script src="js/services/apiService.js"></script>
     <script src="js/models/userModel.js"></script>
     <script src="js/models/userListModel.js"></script>
     <script src="js/models/animeModel.js"></script>
     <script src="js/models/gameModel.js"></script>
-    <script src="js/services/apiService.js"></script>
     <script src="js/controllers/authController.js"></script>
     <script src="js/controllers/animeController.js"></script>
     <script src="js/controllers/gameController.js"></script>
