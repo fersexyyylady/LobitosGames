@@ -1,93 +1,194 @@
 // js/controllers/authController.js
-// Controlador de autenticación y gestión de usuario - CORREGIDO
+// Controlador de autenticación ACTUALIZADO con validación completa
 
 class AuthController {
   constructor() {
     this.model = userModel;
+    this.validationService = validationService;
   }
 
-  /**
-   * Inicializar el controlador
-   */
   init() {
     this.setupEventListeners();
     this.updateUIState();
 
-    // Mostrar botón de "Mis Listas" si el usuario está logueado
+    // Inicializar CAPTCHAs
+    this.validationService.initCaptcha("login");
+    this.validationService.initCaptcha("register");
+
     const myListsBtn = document.getElementById("myListsBtn");
     if (myListsBtn) {
       myListsBtn.style.display = this.model.isLoggedIn() ? "block" : "none";
     }
   }
 
-  /**
-   * Configurar event listeners
-   */
   setupEventListeners() {
     // Event listener para formulario de login
     const loginForm = document.getElementById("loginForm");
     if (loginForm) {
+      // Configurar validación en tiempo real
+      this.validationService.setupLiveValidation(loginForm);
+
       loginForm.addEventListener("submit", async (e) => {
         e.preventDefault();
-
-        const email = document.getElementById("loginEmail").value;
-        const password = document.getElementById("loginPassword").value;
-
-        if (!email || !password) {
-          this.showMessage("Por favor completa todos los campos", "error");
-          return;
-        }
-
-        await this.handleLogin(email, password);
+        await this.handleLogin();
       });
     }
 
     // Event listener para formulario de registro
     const registerForm = document.getElementById("registerForm");
     if (registerForm) {
+      // Configurar validación en tiempo real
+      this.validationService.setupLiveValidation(registerForm);
+
       registerForm.addEventListener("submit", async (e) => {
         e.preventDefault();
-
-        const formData = {
-          nombre: document.getElementById("regNombre").value,
-          apellido: document.getElementById("regApellido").value,
-          username: document.getElementById("regUsername").value,
-          email: document.getElementById("regEmail").value,
-          password: document.getElementById("regPassword").value,
-          confirmPassword: document.getElementById("regConfirmPassword").value,
-        };
-
-        // Validar formulario
-        const validation = this.validateRegisterForm(formData);
-        if (!validation.valid) {
-          this.showMessage(validation.errors.join(", "), "error");
-          return;
-        }
-
-        await this.handleRegister(formData);
+        await this.handleRegister();
       });
+
+      // Validación especial para confirmación de contraseña
+      const confirmPassword = document.getElementById("regConfirmPassword");
+      if (confirmPassword) {
+        confirmPassword.addEventListener("input", () => {
+          this.validationService.validateField(confirmPassword);
+        });
+      }
     }
   }
 
-  /**
-   * Manejar el registro de usuario
-   * @param {Object} formData - Datos del formulario
-   */
-  async handleRegister(formData) {
+  async handleLogin() {
+    const loginForm = document.getElementById("loginForm");
+
+    // Validar formulario Frontend
+    if (!this.validationService.validateForm(loginForm)) {
+      this.showMessage(
+        "Por favor corrige los errores en el formulario",
+        "error",
+      );
+      return;
+    }
+
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const captchaAnswer = document.getElementById("loginCaptchaAnswer").value;
+
+    // Validar CAPTCHA
+    if (!this.validationService.validateCaptcha("login", captchaAnswer)) {
+      this.showMessage("Respuesta de verificación incorrecta", "error");
+      this.validationService.refreshCaptcha("login");
+      document.getElementById("loginCaptchaAnswer").value = "";
+      return;
+    }
+
+    // Validación Backend (simulada)
+    const backendValidation = await this.validationService.validateBackend({
+      email,
+      password,
+    });
+
+    if (!backendValidation.valid) {
+      backendValidation.errors.forEach((error) => {
+        this.showMessage(error.message, "error");
+      });
+      return;
+    }
+
+    try {
+      const result = await this.model.login(email, password);
+
+      if (result.success) {
+        loginForm.reset();
+        this.validationService.refreshCaptcha("login");
+        this.showMessage(`Bienvenido, ${result.user.nombre}`, "success");
+        this.updateUIState();
+        this.closeAuthModals();
+
+        const myListsBtn = document.getElementById("myListsBtn");
+        if (myListsBtn) {
+          myListsBtn.style.display = "block";
+        }
+      } else {
+        this.showMessage(result.error, "error");
+        this.validationService.refreshCaptcha("login");
+      }
+    } catch (error) {
+      this.showMessage("Error al iniciar sesión", "error");
+      console.error(error);
+    }
+  }
+
+  async handleRegister() {
+    const registerForm = document.getElementById("registerForm");
+
+    // Validar formulario Frontend
+    if (!this.validationService.validateForm(registerForm)) {
+      this.showMessage(
+        "Por favor corrige los errores en el formulario",
+        "error",
+      );
+      return;
+    }
+
+    const formData = {
+      nombre: document.getElementById("regNombre").value.trim(),
+      apellido: document.getElementById("regApellido").value.trim(),
+      username: document.getElementById("regUsername").value.trim(),
+      email: document.getElementById("regEmail").value.trim(),
+      password: document.getElementById("regPassword").value,
+      confirmPassword: document.getElementById("regConfirmPassword").value,
+    };
+
+    const captchaAnswer = document.getElementById(
+      "registerCaptchaAnswer",
+    ).value;
+    const termsAccepted = document.getElementById("regTerms").checked;
+
+    // Validar términos y condiciones
+    if (!termsAccepted) {
+      this.showMessage("Debes aceptar los términos y condiciones", "error");
+      return;
+    }
+
+    // Validar CAPTCHA
+    if (!this.validationService.validateCaptcha("register", captchaAnswer)) {
+      this.showMessage("Respuesta de verificación incorrecta", "error");
+      this.validationService.refreshCaptcha("register");
+      document.getElementById("registerCaptchaAnswer").value = "";
+      return;
+    }
+
+    // Validación Backend
+    const backendValidation =
+      await this.validationService.validateBackend(formData);
+
+    if (!backendValidation.valid) {
+      backendValidation.errors.forEach((error) => {
+        const field = document.getElementById(
+          error.field === "email"
+            ? "regEmail"
+            : error.field === "username"
+              ? "regUsername"
+              : error.field === "confirmPassword"
+                ? "regConfirmPassword"
+                : error.field,
+        );
+        if (field) {
+          this.validationService.showFieldError(field, error.message);
+        }
+        this.showMessage(error.message, "error");
+      });
+      return;
+    }
+
     try {
       const result = await this.model.register(formData);
 
       if (result.success) {
-        // Limpiar formulario
-        document.getElementById("registerForm").reset();
-
-        // Mostrar mensaje de éxito
+        registerForm.reset();
+        this.validationService.refreshCaptcha("register");
         this.showMessage(
-          "Registro exitoso. Por favor inicia sesión.",
+          "Registro exitoso. Por favor inicia sesión",
           "success",
         );
-
-        // Cerrar modal de registro y abrir login
         this.closeAuthModals();
 
         setTimeout(() => {
@@ -102,67 +203,27 @@ class AuthController {
     }
   }
 
-  /**
-   * Manejar el inicio de sesión
-   * @param {string} emailOrUsername - Email o username
-   * @param {string} password - Contraseña
-   */
-  async handleLogin(emailOrUsername, password) {
-    try {
-      const result = await this.model.login(emailOrUsername, password);
-
-      if (result.success) {
-        // Limpiar formulario
-        document.getElementById("loginForm").reset();
-
-        this.showMessage(`¡Bienvenido, ${result.user.nombre}!`, "success");
-        this.updateUIState();
-        this.closeAuthModals();
-
-        // Mostrar botón de "Mis Listas"
-        const myListsBtn = document.getElementById("myListsBtn");
-        if (myListsBtn) {
-          myListsBtn.style.display = "block";
-        }
-      } else {
-        this.showMessage(result.error, "error");
-      }
-    } catch (error) {
-      this.showMessage("Error al iniciar sesión", "error");
-      console.error(error);
-    }
-  }
-
-  /**
-   * Manejar el cierre de sesión
-   */
   handleLogout() {
     if (confirm("¿Estás seguro de que quieres cerrar sesión?")) {
       this.model.logout();
       this.updateUIState();
       this.showMessage("Sesión cerrada exitosamente", "info");
 
-      // Ocultar botón de "Mis Listas"
       const myListsBtn = document.getElementById("myListsBtn");
       if (myListsBtn) {
         myListsBtn.style.display = "none";
       }
 
-      // Redirigir a inicio
       if (viewManager) {
         viewManager.showSection("home");
       }
     }
   }
 
-  /**
-   * Actualizar el estado de la UI según la autenticación
-   */
   updateUIState() {
     const isLoggedIn = this.model.isLoggedIn();
     const user = this.model.getCurrentUser();
 
-    // Actualizar botones de header
     const authButtons = document.getElementById("authButtons");
     const userMenu = document.getElementById("userMenu");
 
@@ -171,7 +232,6 @@ class AuthController {
         authButtons.style.display = "none";
         userMenu.style.display = "flex";
 
-        // Actualizar información del usuario
         const usernameDisplay = document.getElementById("usernameDisplay");
         const userAvatar = document.getElementById("userAvatar");
 
@@ -188,23 +248,21 @@ class AuthController {
       }
     }
 
-    // Actualizar botón de "Mis Listas"
     const myListsBtn = document.getElementById("myListsBtn");
     if (myListsBtn) {
       myListsBtn.style.display = isLoggedIn ? "block" : "none";
     }
   }
 
-  /**
-   * Mostrar modal de login
-   */
   showLoginModal() {
     const modal = document.getElementById("loginModal");
     if (modal) {
       modal.classList.add("active");
       document.body.style.overflow = "hidden";
 
-      // Focus en el primer campo
+      // Generar nuevo CAPTCHA
+      this.validationService.initCaptcha("login");
+
       setTimeout(() => {
         const emailInput = document.getElementById("loginEmail");
         if (emailInput) emailInput.focus();
@@ -212,16 +270,15 @@ class AuthController {
     }
   }
 
-  /**
-   * Mostrar modal de registro
-   */
   showRegisterModal() {
     const modal = document.getElementById("registerModal");
     if (modal) {
       modal.classList.add("active");
       document.body.style.overflow = "hidden";
 
-      // Focus en el primer campo
+      // Generar nuevo CAPTCHA
+      this.validationService.initCaptcha("register");
+
       setTimeout(() => {
         const nombreInput = document.getElementById("regNombre");
         if (nombreInput) nombreInput.focus();
@@ -229,94 +286,60 @@ class AuthController {
     }
   }
 
-  /**
-   * Cerrar modales de autenticación
-   */
   closeAuthModals() {
     const loginModal = document.getElementById("loginModal");
     const registerModal = document.getElementById("registerModal");
 
     if (loginModal) {
       loginModal.classList.remove("active");
+      // Limpiar formulario
+      const loginForm = document.getElementById("loginForm");
+      if (loginForm) {
+        loginForm.reset();
+        // Limpiar errores
+        loginForm.querySelectorAll(".error-message").forEach((el) => {
+          el.style.display = "none";
+          el.textContent = "";
+        });
+        loginForm.querySelectorAll("input.error").forEach((el) => {
+          el.classList.remove("error");
+        });
+      }
     }
 
     if (registerModal) {
       registerModal.classList.remove("active");
+      // Limpiar formulario
+      const registerForm = document.getElementById("registerForm");
+      if (registerForm) {
+        registerForm.reset();
+        // Limpiar errores
+        registerForm.querySelectorAll(".error-message").forEach((el) => {
+          el.style.display = "none";
+          el.textContent = "";
+        });
+        registerForm.querySelectorAll("input.error").forEach((el) => {
+          el.classList.remove("error");
+        });
+      }
     }
 
     document.body.style.overflow = "auto";
   }
 
-  /**
-   * Mostrar mensaje al usuario
-   * @param {string} message - Mensaje
-   * @param {string} type - Tipo: 'success', 'error', 'info'
-   */
   showMessage(message, type = "info") {
-    // Crear elemento de notificación
     const notification = document.createElement("div");
     notification.className = `notification notification-${type}`;
     notification.textContent = message;
 
-    // Agregar al DOM
     document.body.appendChild(notification);
 
-    // Animar entrada
     setTimeout(() => notification.classList.add("show"), 100);
 
-    // Remover después de 3 segundos
     setTimeout(() => {
       notification.classList.remove("show");
       setTimeout(() => notification.remove(), 300);
     }, 3000);
-  }
-
-  /**
-   * Validar formulario de registro
-   * @param {Object} formData - Datos del formulario
-   * @returns {Object} - { valid: boolean, errors: Array }
-   */
-  validateRegisterForm(formData) {
-    const errors = [];
-
-    if (!formData.nombre || formData.nombre.trim().length < 2) {
-      errors.push("El nombre debe tener al menos 2 caracteres");
-    }
-
-    if (!formData.apellido || formData.apellido.trim().length < 2) {
-      errors.push("El apellido debe tener al menos 2 caracteres");
-    }
-
-    if (!formData.username || formData.username.trim().length < 3) {
-      errors.push("El nombre de usuario debe tener al menos 3 caracteres");
-    }
-
-    if (!formData.email || !this.isValidEmail(formData.email)) {
-      errors.push("El correo electrónico no es válido");
-    }
-
-    if (!formData.password || formData.password.length < 6) {
-      errors.push("La contraseña debe tener al menos 6 caracteres");
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      errors.push("Las contraseñas no coinciden");
-    }
-
-    return {
-      valid: errors.length === 0,
-      errors,
-    };
-  }
-
-  /**
-   * Validar email
-   * @param {string} email - Email a validar
-   * @returns {boolean}
-   */
-  isValidEmail(email) {
-    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return regex.test(email);
   }
 }
 

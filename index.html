@@ -9,10 +9,13 @@
       content="Catálogo digital de animes y videojuegos - LobitosGames"
     />
     <title>LobitosGames - Catálogo de Animes y Videojuegos</title>
+    <!-- <link rel="stylesheet" href="css/carousel.css" /> -->
     <link rel="stylesheet" href="css/styles.css" />
     <link rel="stylesheet" href="css/auth.css" />
     <link rel="stylesheet" href="css/modal-actions.css" />
     <link rel="stylesheet" href="css/pagination.css" />
+    <link rel="stylesheet" href="css/carousel.css" />
+    <link rel="stylesheet" href="css/search-advanced.css" />
   </head>
   <body>
     <header class="header">
@@ -53,7 +56,6 @@
           </button>
         </nav>
 
-        <!-- Botones de autenticación (cuando no hay sesión) -->
         <div class="auth-buttons" id="authButtons">
           <button class="btn-login" onclick="authController.showLoginModal()">
             Iniciar Sesión
@@ -66,7 +68,6 @@
           </button>
         </div>
 
-        <!-- Menú de usuario (cuando hay sesión) -->
         <div class="user-menu" id="userMenu" style="display: none">
           <img src="" alt="Avatar" class="user-avatar" id="userAvatar" />
           <span class="username" id="usernameDisplay"></span>
@@ -77,6 +78,7 @@
       </div>
     </header>
 
+    <!-- Sección de búsqueda simple -->
     <section class="search-section" id="searchSection">
       <div class="container">
         <div class="search-bar">
@@ -85,6 +87,8 @@
             id="searchInput"
             placeholder="Buscar por título..."
             aria-label="Campo de búsqueda"
+            minlength="2"
+            maxlength="100"
           />
           <button class="search-btn" aria-label="Buscar">
             <svg
@@ -100,6 +104,88 @@
               <path d="m21 21-4.35-4.35"></path>
             </svg>
           </button>
+          <button
+            class="btn-advanced-search"
+            onclick="searchController.toggleAdvancedSearch()"
+            aria-label="Búsqueda avanzada"
+          >
+            Filtros Avanzados
+          </button>
+        </div>
+
+        <!-- Panel de búsqueda avanzada -->
+        <div class="advanced-search-panel" id="advancedSearchPanel">
+          <h3>Búsqueda Avanzada</h3>
+          <div class="advanced-filters">
+            <div class="filter-group">
+              <label for="filterGenre">Género</label>
+              <select id="filterGenre" class="filter-select">
+                <option value="">Todos</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label for="filterYear">Año</label>
+              <div class="year-range">
+                <input
+                  type="number"
+                  id="filterYearMin"
+                  placeholder="Desde"
+                  min="1960"
+                  max="2026"
+                  class="filter-input"
+                />
+                <span>-</span>
+                <input
+                  type="number"
+                  id="filterYearMax"
+                  placeholder="Hasta"
+                  min="1960"
+                  max="2026"
+                  class="filter-input"
+                />
+              </div>
+            </div>
+
+            <div class="filter-group">
+              <label for="filterRating">Calificación Mínima</label>
+              <input
+                type="range"
+                id="filterRating"
+                min="0"
+                max="10"
+                step="0.1"
+                value="0"
+                class="filter-range"
+              />
+              <span id="ratingValue">0.0</span>
+            </div>
+
+            <div class="filter-group">
+              <label for="filterSort">Ordenar por</label>
+              <select id="filterSort" class="filter-select">
+                <option value="relevance">Relevancia</option>
+                <option value="rating">Calificación</option>
+                <option value="year">Año</option>
+                <option value="title">Título</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-actions">
+            <button
+              class="btn-apply-filters"
+              onclick="searchController.applyAdvancedFilters()"
+            >
+              Aplicar Filtros
+            </button>
+            <button
+              class="btn-reset-filters"
+              onclick="searchController.resetFilters()"
+            >
+              Limpiar
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -107,16 +193,55 @@
     <main class="main">
       <!-- Sección de Inicio -->
       <section id="home" class="section active">
-        <div class="hero-section">
+        <!-- Carrusel Hero -->
+        <div class="hero-carousel-section">
           <div class="container">
-            <div class="hero-content">
-              <h2 class="hero-title">
-                Descubre el mejor contenido de entretenimiento
-              </h2>
-              <p class="hero-subtitle">
-                Explora nuestro catálogo de animes y videojuegos
-              </p>
+            <h2 class="carousel-title">Destacados de la Semana</h2>
+            <div class="carousel-container">
+              <button
+                class="carousel-btn prev"
+                id="carouselPrev"
+                aria-label="Anterior"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+              </button>
+
+              <div class="carousel-track-container">
+                <div class="carousel-track" id="carouselTrack">
+                  <!-- Los slides se generarán dinámicamente -->
+                </div>
+              </div>
+
+              <button
+                class="carousel-btn next"
+                id="carouselNext"
+                aria-label="Siguiente"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </button>
             </div>
+
+            <div class="carousel-indicators" id="carouselIndicators"></div>
           </div>
         </div>
 
@@ -201,8 +326,6 @@
             </div>
           </div>
           <div id="animeGrid" class="catalog-grid"></div>
-
-          <!-- Paginación de Animes -->
           <div class="pagination-container">
             <div id="animePagination"></div>
           </div>
@@ -234,19 +357,16 @@
             </div>
           </div>
           <div id="gameGrid" class="catalog-grid"></div>
-
-          <!-- Paginación de Videojuegos -->
           <div class="pagination-container">
             <div id="gamePagination"></div>
           </div>
         </div>
       </section>
 
-      <!-- Sección de Mis Listas (nueva) -->
+      <!-- Sección de Mis Listas -->
       <section id="my-lists" class="section">
         <div class="container">
           <h2 class="section-title">Mis Listas</h2>
-
           <div class="lists-container">
             <div class="list-section">
               <h3 class="list-title">
@@ -254,28 +374,24 @@
               </h3>
               <div id="favoritosList" class="list-grid"></div>
             </div>
-
             <div class="list-section">
               <h3 class="list-title">
                 <span class="list-icon">👁️</span> Viendo / Jugando
               </h3>
               <div id="viendoJugandoList" class="list-grid"></div>
             </div>
-
             <div class="list-section">
               <h3 class="list-title">
                 <span class="list-icon">🤔</span> Considerando
               </h3>
               <div id="considerandoList" class="list-grid"></div>
             </div>
-
             <div class="list-section">
               <h3 class="list-title">
                 <span class="list-icon">✅</span> Completado
               </h3>
               <div id="completadoList" class="list-grid"></div>
             </div>
-
             <div class="list-section">
               <h3 class="list-title">
                 <span class="list-icon">❌</span> Dropeado
@@ -319,7 +435,7 @@
       </div>
     </div>
 
-    <!-- Modal de Login -->
+    <!-- Modal de Login con validaciones mejoradas -->
     <div id="loginModal" class="modal">
       <div
         class="modal-overlay"
@@ -330,15 +446,49 @@
           ×
         </button>
         <h2>Iniciar Sesión</h2>
-        <form id="loginForm" onsubmit="return false;">
+        <form id="loginForm" onsubmit="return false;" novalidate>
           <div class="form-group">
-            <label for="loginEmail">Email o Usuario</label>
-            <input type="text" id="loginEmail" required />
+            <label for="loginEmail">Email o Usuario *</label>
+            <input
+              type="text"
+              id="loginEmail"
+              required
+              minlength="3"
+              maxlength="100"
+              pattern="^[a-zA-Z0-9@._-]+$"
+              aria-describedby="loginEmailError"
+            />
+            <span class="error-message" id="loginEmailError"></span>
           </div>
           <div class="form-group">
-            <label for="loginPassword">Contraseña</label>
-            <input type="password" id="loginPassword" required />
+            <label for="loginPassword">Contraseña *</label>
+            <input
+              type="password"
+              id="loginPassword"
+              required
+              minlength="6"
+              maxlength="50"
+              aria-describedby="loginPasswordError"
+            />
+            <span class="error-message" id="loginPasswordError"></span>
           </div>
+
+          <!-- Verificación humana para login -->
+          <div class="form-group captcha-group">
+            <label>Verificación de seguridad *</label>
+            <div class="captcha-box">
+              <span id="loginCaptchaQuestion"></span>
+              <input
+                type="number"
+                id="loginCaptchaAnswer"
+                required
+                placeholder="Respuesta"
+                aria-describedby="loginCaptchaError"
+              />
+            </div>
+            <span class="error-message" id="loginCaptchaError"></span>
+          </div>
+
           <button type="submit" class="btn-primary">Iniciar Sesión</button>
           <p class="form-footer">
             ¿No tienes cuenta?
@@ -356,7 +506,7 @@
       </div>
     </div>
 
-    <!-- Modal de Registro -->
+    <!-- Modal de Registro con validaciones HTML5 completas -->
     <div id="registerModal" class="modal">
       <div
         class="modal-overlay"
@@ -366,32 +516,121 @@
         <button class="modal-close" onclick="authController.closeAuthModals()">
           ×
         </button>
-        <h2>Registro</h2>
-        <form id="registerForm" onsubmit="return false;">
+        <h2>Registro de Usuario</h2>
+        <form id="registerForm" onsubmit="return false;" novalidate>
           <div class="form-group">
-            <label for="regNombre">Nombre</label>
-            <input type="text" id="regNombre" required />
+            <label for="regNombre">Nombre *</label>
+            <input
+              type="text"
+              id="regNombre"
+              required
+              minlength="2"
+              maxlength="50"
+              pattern="^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$"
+              aria-describedby="regNombreError"
+            />
+            <span class="error-message" id="regNombreError"></span>
           </div>
+
           <div class="form-group">
-            <label for="regApellido">Apellido</label>
-            <input type="text" id="regApellido" required />
+            <label for="regApellido">Apellido *</label>
+            <input
+              type="text"
+              id="regApellido"
+              required
+              minlength="2"
+              maxlength="50"
+              pattern="^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$"
+              aria-describedby="regApellidoError"
+            />
+            <span class="error-message" id="regApellidoError"></span>
           </div>
+
           <div class="form-group">
-            <label for="regUsername">Nombre de Usuario</label>
-            <input type="text" id="regUsername" required />
+            <label for="regUsername">Nombre de Usuario *</label>
+            <input
+              type="text"
+              id="regUsername"
+              required
+              minlength="3"
+              maxlength="20"
+              pattern="^[a-zA-Z0-9_-]+$"
+              aria-describedby="regUsernameError"
+            />
+            <span class="error-message" id="regUsernameError"></span>
+            <small class="field-hint"
+              >Solo letras, números, guiones y guiones bajos</small
+            >
           </div>
+
           <div class="form-group">
-            <label for="regEmail">Email</label>
-            <input type="email" id="regEmail" required />
+            <label for="regEmail">Correo Electrónico *</label>
+            <input
+              type="email"
+              id="regEmail"
+              required
+              maxlength="100"
+              pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+              aria-describedby="regEmailError"
+            />
+            <span class="error-message" id="regEmailError"></span>
           </div>
+
           <div class="form-group">
-            <label for="regPassword">Contraseña</label>
-            <input type="password" id="regPassword" required />
+            <label for="regPassword">Contraseña *</label>
+            <input
+              type="password"
+              id="regPassword"
+              required
+              minlength="6"
+              maxlength="50"
+              pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$"
+              aria-describedby="regPasswordError"
+            />
+            <span class="error-message" id="regPasswordError"></span>
+            <small class="field-hint"
+              >Mínimo 6 caracteres, una mayúscula, una minúscula y un
+              número</small
+            >
           </div>
+
           <div class="form-group">
-            <label for="regConfirmPassword">Confirmar Contraseña</label>
-            <input type="password" id="regConfirmPassword" required />
+            <label for="regConfirmPassword">Confirmar Contraseña *</label>
+            <input
+              type="password"
+              id="regConfirmPassword"
+              required
+              minlength="6"
+              maxlength="50"
+              aria-describedby="regConfirmPasswordError"
+            />
+            <span class="error-message" id="regConfirmPasswordError"></span>
           </div>
+
+          <!-- Verificación humana -->
+          <div class="form-group captcha-group">
+            <label>Verificación de seguridad *</label>
+            <div class="captcha-box">
+              <span id="registerCaptchaQuestion"></span>
+              <input
+                type="number"
+                id="registerCaptchaAnswer"
+                required
+                placeholder="Respuesta"
+                aria-describedby="registerCaptchaError"
+              />
+            </div>
+            <span class="error-message" id="registerCaptchaError"></span>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="regTerms" required />
+              Acepto los términos y condiciones *
+            </label>
+            <span class="error-message" id="regTermsError"></span>
+          </div>
+
           <button type="submit" class="btn-primary">Registrarse</button>
           <p class="form-footer">
             ¿Ya tienes cuenta?
@@ -446,15 +685,18 @@
       </div>
     </footer>
 
-    <!-- Scripts - ORDEN CORRECTO ES CRUCIAL -->
+    <!-- Scripts -->
     <script src="js/services/apiService.js"></script>
+    <script src="js/services/validationService.js"></script>
     <script src="js/models/userModel.js"></script>
     <script src="js/models/userListModel.js"></script>
     <script src="js/models/animeModel.js"></script>
     <script src="js/models/gameModel.js"></script>
     <script src="js/controllers/authController.js"></script>
+    <script src="js/controllers/searchController.js"></script>
     <script src="js/controllers/animeController.js"></script>
     <script src="js/controllers/gameController.js"></script>
+    <script src="js/controllers/carouselController.js"></script>
     <script src="js/views/viewManager.js"></script>
     <script src="js/app.js"></script>
   </body>
