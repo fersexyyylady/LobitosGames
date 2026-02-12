@@ -1,4 +1,6 @@
-// js/controllers/authController.js - CORREGIDO
+// js/controllers/authController.js
+// CORREGIDO - Validación de CAPTCHA arreglada
+
 class AuthController {
   constructor() {
     this.model = userModel;
@@ -39,7 +41,21 @@ class AuthController {
     // Live validation
     this.setupLiveValidation();
 
-    // Close modals
+    // Close modals on overlay click
+    const loginOverlay = document.querySelector("#loginModal .modal-overlay");
+    const registerOverlay = document.querySelector(
+      "#registerModal .modal-overlay",
+    );
+
+    if (loginOverlay) {
+      loginOverlay.addEventListener("click", () => this.closeAuthModals());
+    }
+
+    if (registerOverlay) {
+      registerOverlay.addEventListener("click", () => this.closeAuthModals());
+    }
+
+    // Close modals on close button
     const loginClose = document.querySelector("#loginModal .modal-close");
     const registerClose = document.querySelector("#registerModal .modal-close");
 
@@ -49,12 +65,6 @@ class AuthController {
 
     if (registerClose) {
       registerClose.addEventListener("click", () => this.closeAuthModals());
-    }
-
-    // Logout
-    const btnLogout = document.getElementById("btnLogout");
-    if (btnLogout) {
-      btnLogout.addEventListener("click", () => this.handleLogout());
     }
   }
 
@@ -194,6 +204,7 @@ class AuthController {
     }
 
     questionElement.textContent = captcha.question;
+    console.log(`🔢 CAPTCHA ${type}:`, captcha.question, "=", captcha.answer);
   }
 
   async handleLogin() {
@@ -213,17 +224,19 @@ class AuthController {
       return;
     }
 
-    // Validar CAPTCHA
-    if (
-      !this.validationService.validateCaptcha(this.loginCaptcha, captchaAnswer)
-    ) {
-      this.showError("CAPTCHA incorrecto", "loginCaptcha");
+    // CORREGIDO: Validar CAPTCHA correctamente
+    const userAnswer = parseInt(captchaAnswer);
+    console.log("🔢 Respuesta usuario:", userAnswer);
+    console.log("🔢 Respuesta correcta:", this.loginCaptcha.answer);
+
+    if (userAnswer !== this.loginCaptcha.answer) {
+      this.showError("CAPTCHA incorrecto. Intenta de nuevo.", "loginCaptcha");
       this.initCaptcha("login");
       document.getElementById("loginCaptchaAnswer").value = "";
       return;
     }
 
-    // CORREGIDO: Intentar login
+    // Intentar login
     const result = this.model.login(emailOrUsername, password);
 
     if (result.success) {
@@ -236,10 +249,10 @@ class AuthController {
       this.initCaptcha("login");
 
       // Mostrar mensaje de bienvenida
-      alert(`¡Bienvenido ${result.user.nombre}!`);
+      this.showMessage(`¡Bienvenido ${result.user.nombre}!`, "success");
     } else {
       // Mostrar error específico
-      this.showError(result.message, "loginEmail");
+      this.showError(result.message || result.error, "loginEmail");
       this.initCaptcha("login");
       document.getElementById("loginCaptchaAnswer").value = "";
     }
@@ -287,14 +300,16 @@ class AuthController {
       return;
     }
 
-    // Validar CAPTCHA
-    if (
-      !this.validationService.validateCaptcha(
-        this.registerCaptcha,
-        captchaAnswer,
-      )
-    ) {
-      this.showError("CAPTCHA incorrecto", "registerCaptcha");
+    // CORREGIDO: Validar CAPTCHA correctamente
+    const userAnswer = parseInt(captchaAnswer);
+    console.log("🔢 Respuesta usuario:", userAnswer);
+    console.log("🔢 Respuesta correcta:", this.registerCaptcha.answer);
+
+    if (userAnswer !== this.registerCaptcha.answer) {
+      this.showError(
+        "CAPTCHA incorrecto. Intenta de nuevo.",
+        "registerCaptcha",
+      );
       this.initCaptcha("register");
       document.getElementById("registerCaptchaAnswer").value = "";
       return;
@@ -307,7 +322,13 @@ class AuthController {
     });
 
     if (!backendValidation.valid) {
-      this.showError(backendValidation.message, backendValidation.field);
+      // Mostrar errores del backend
+      backendValidation.errors.forEach((error) => {
+        this.showError(
+          error.message,
+          "reg" + error.field.charAt(0).toUpperCase() + error.field.slice(1),
+        );
+      });
       return;
     }
 
@@ -324,7 +345,10 @@ class AuthController {
 
     if (result.success) {
       console.log("✅ Registro exitoso");
-      alert("¡Registro exitoso! Ahora puedes iniciar sesión.");
+      this.showMessage(
+        "¡Registro exitoso! Ahora puedes iniciar sesión.",
+        "success",
+      );
 
       // Limpiar formulario
       document.getElementById("registerForm").reset();
@@ -334,7 +358,7 @@ class AuthController {
       this.closeAuthModals();
       setTimeout(() => this.showLoginModal(), 300);
     } else {
-      this.showError(result.message, "regEmail");
+      this.showError(result.message || result.error, "regEmail");
     }
   }
 
@@ -344,8 +368,30 @@ class AuthController {
       errorSpan.textContent = message;
       errorSpan.style.display = "block";
     } else {
+      console.error("Error span not found:", fieldPrefix + "Error");
       alert(message);
     }
+  }
+
+  showMessage(message, type = "info") {
+    // Crear notificación
+    const notification = document.createElement("div");
+    notification.className = `notification notification-${type}`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    // Mostrar notificación
+    setTimeout(() => {
+      notification.classList.add("show");
+    }, 100);
+
+    // Ocultar después de 3 segundos
+    setTimeout(() => {
+      notification.classList.remove("show");
+      setTimeout(() => {
+        document.body.removeChild(notification);
+      }, 300);
+    }, 3000);
   }
 
   showLoginModal() {
@@ -402,7 +448,7 @@ class AuthController {
       // Redirigir a inicio
       viewManager.showSection("home");
 
-      console.log("✅ Sesión cerrada");
+      this.showMessage("Sesión cerrada exitosamente", "success");
     }
   }
 
@@ -429,7 +475,9 @@ class AuthController {
       if (userAvatar) {
         userAvatar.src =
           currentUser.avatar ||
-          `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.nombre + " " + currentUser.apellido)}&background=667eea&color=fff`;
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(
+            currentUser.nombre + " " + currentUser.apellido,
+          )}&background=667eea&color=fff`;
       }
     } else {
       // No hay usuario

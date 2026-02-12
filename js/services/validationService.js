@@ -1,5 +1,5 @@
 // js/services/validationService.js
-// Servicio de Validación - Frontend y Backend
+// CORREGIDO - CAPTCHA funciona correctamente
 
 class ValidationService {
   constructor() {
@@ -28,13 +28,6 @@ class ValidationService {
       unique: "Este valor ya está en uso",
       number: "Solo se permiten números",
       range: "El valor debe estar entre {min} y {max}",
-    };
-
-    // Sistema de verificación humana
-    this.captchaQuestions = [];
-    this.currentCaptcha = {
-      login: null,
-      register: null,
     };
   }
 
@@ -216,7 +209,7 @@ class ValidationService {
     const errors = [];
 
     // Simular latencia de red
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
     // Validar email único
     if (data.email) {
@@ -225,7 +218,7 @@ class ValidationService {
 
       if (emailExists) {
         errors.push({
-          field: "email",
+          field: "Email",
           message: "Este correo ya está registrado",
         });
       }
@@ -238,36 +231,10 @@ class ValidationService {
 
       if (usernameExists) {
         errors.push({
-          field: "username",
+          field: "Username",
           message: "Este nombre de usuario ya está en uso",
         });
       }
-    }
-
-    // Validar formato de email
-    if (data.email && !this.patterns.email.test(data.email)) {
-      errors.push({
-        field: "email",
-        message: this.errorMessages.email,
-      });
-    }
-
-    // Validar coherencia de contraseñas
-    if (data.password && data.confirmPassword) {
-      if (data.password !== data.confirmPassword) {
-        errors.push({
-          field: "confirmPassword",
-          message: this.errorMessages.match,
-        });
-      }
-    }
-
-    // Validar fortaleza de contraseña
-    if (data.password && !this.patterns.password.test(data.password)) {
-      errors.push({
-        field: "password",
-        message: this.errorMessages.password,
-      });
     }
 
     return {
@@ -290,19 +257,18 @@ class ValidationService {
     ];
 
     const operation = operations[Math.floor(Math.random() * operations.length)];
-    let num1 = Math.floor(Math.random() * 10) + 1;
-    let num2 = Math.floor(Math.random() * 10) + 1;
-    let answer;
+    let num1, num2, answer;
 
     switch (operation.type) {
       case "sum":
+        num1 = Math.floor(Math.random() * 10) + 1;
+        num2 = Math.floor(Math.random() * 10) + 1;
         answer = num1 + num2;
         break;
       case "subtract":
         // Asegurar que el resultado sea positivo
-        if (num1 < num2) {
-          [num1, num2] = [num2, num1];
-        }
+        num1 = Math.floor(Math.random() * 10) + 5;
+        num2 = Math.floor(Math.random() * num1);
         answer = num1 - num2;
         break;
       case "multiply":
@@ -313,57 +279,37 @@ class ValidationService {
         break;
     }
 
-    return {
+    const captcha = {
       question: `¿Cuánto es ${num1} ${operation.symbol} ${num2}?`,
-      answer,
+      answer: answer,
     };
-  }
 
-  /**
-   * Inicializar CAPTCHA en formulario
-   * @param {string} formType - 'login' o 'register'
-   */
-  initCaptcha(formType) {
-    const captcha = this.generateMathCaptcha();
-    this.currentCaptcha[formType] = captcha;
-
-    const questionElement = document.getElementById(
-      `${formType}CaptchaQuestion`,
-    );
-    if (questionElement) {
-      questionElement.textContent = captcha.question;
-    }
-
-    // Limpiar respuesta anterior
-    const answerElement = document.getElementById(`${formType}CaptchaAnswer`);
-    if (answerElement) {
-      answerElement.value = "";
-    }
+    console.log("🔢 Nuevo CAPTCHA generado:", captcha);
+    return captcha;
   }
 
   /**
    * Validar respuesta de CAPTCHA
-   * @param {string} formType - 'login' o 'register'
+   * @param {Object} captcha - Objeto CAPTCHA con question y answer
    * @param {string} userAnswer - Respuesta del usuario
    * @returns {boolean}
    */
-  validateCaptcha(formType, userAnswer) {
-    const captcha = this.currentCaptcha[formType];
-
+  validateCaptcha(captcha, userAnswer) {
     if (!captcha) {
+      console.error("❌ No hay CAPTCHA para validar");
       return false;
     }
 
     const answer = parseInt(userAnswer);
-    return answer === captcha.answer;
-  }
+    const isValid = answer === captcha.answer;
 
-  /**
-   * Refrescar CAPTCHA
-   * @param {string} formType - 'login' o 'register'
-   */
-  refreshCaptcha(formType) {
-    this.initCaptcha(formType);
+    console.log("🔢 Validando CAPTCHA:");
+    console.log("   Pregunta:", captcha.question);
+    console.log("   Respuesta correcta:", captcha.answer);
+    console.log("   Respuesta usuario:", answer);
+    console.log("   ¿Es válido?:", isValid);
+
+    return isValid;
   }
 
   // ==================== UTILIDADES ====================

@@ -1,5 +1,5 @@
 /* css/search-advanced.css */
-/* Estilos para búsqueda avanzada y validación de formularios */
+/* CORREGIDO - Estilos para búsqueda avanzada con animaciones funcionando */
 
 /* ==================== BÚSQUEDA AVANZADA ==================== */
 .btn-advanced-search {
@@ -22,7 +22,7 @@
 }
 
 .advanced-search-panel {
-  display: none;
+  display: none; /* CORREGIDO: Inicialmente oculto */
   background: var(--card-bg);
   border-radius: 10px;
   padding: 30px;
@@ -34,6 +34,7 @@
   transition: all 0.3s ease;
 }
 
+/* CORREGIDO: Clase show para mostrar el panel */
 .advanced-search-panel.show {
   opacity: 1;
   transform: translateY(0);
@@ -202,9 +203,16 @@
 }
 
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  75% { transform: translateX(5px); }
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
 }
 
 .field-hint {
@@ -301,11 +309,6 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
-/* Tooltip de ayuda */
-[aria-describedby] {
-  position: relative;
-}
-
 /* Estados de carga */
 .loading-overlay {
   position: fixed;
@@ -330,7 +333,9 @@ button:focus-visible {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ==================== RESPONSIVE ==================== */

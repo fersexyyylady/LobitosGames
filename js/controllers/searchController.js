@@ -1,4 +1,6 @@
-// js/controllers/searchController.js - CON TOGGLE ARREGLADO
+// js/controllers/searchController.js
+// CORREGIDO - Toggle de filtros avanzados arreglado
+
 class SearchController {
   constructor() {
     this.advancedPanelOpen = false;
@@ -28,9 +30,9 @@ class SearchController {
             }
           } else if (value.length === 0) {
             if (this.currentSection === "animes") {
-              animeController.loadAnimes(1);
+              animeController.renderAnimeGrid();
             } else if (this.currentSection === "games") {
-              gameController.loadGames(1);
+              gameController.renderGameGrid();
             }
           }
         }, 500);
@@ -51,23 +53,42 @@ class SearchController {
       });
     }
 
-    // ARREGLADO: Botón de filtros avanzados
-    const btnAdvancedSearch = document.getElementById("btnAdvancedSearch");
-    if (btnAdvancedSearch) {
-      btnAdvancedSearch.addEventListener("click", () => {
-        this.toggleAdvancedSearch();
+    // CORREGIDO: Botón de búsqueda
+    const searchBtn = document.querySelector(".search-btn");
+    if (searchBtn) {
+      searchBtn.addEventListener("click", () => {
+        const value = searchInput?.value || "";
+        if (value.length >= 2) {
+          if (this.currentSection === "animes") {
+            animeController.search(value);
+          } else if (this.currentSection === "games") {
+            gameController.search(value);
+          }
+        }
       });
     }
 
+    // CORREGIDO: Botón de filtros avanzados - usar clase en lugar de ID
+    const btnAdvancedSearch = document.querySelector(".btn-advanced-search");
+    if (btnAdvancedSearch) {
+      console.log("✅ Botón de filtros avanzados encontrado");
+      btnAdvancedSearch.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.toggleAdvancedSearch();
+      });
+    } else {
+      console.warn("⚠️ Botón de filtros avanzados no encontrado");
+    }
+
     // Botones de aplicar y limpiar filtros
-    const btnApplyFilters = document.getElementById("btnApplyFilters");
+    const btnApplyFilters = document.querySelector(".btn-apply-filters");
     if (btnApplyFilters) {
       btnApplyFilters.addEventListener("click", () => {
         this.applyAdvancedFilters();
       });
     }
 
-    const btnResetFilters = document.getElementById("btnResetFilters");
+    const btnResetFilters = document.querySelector(".btn-reset-filters");
     if (btnResetFilters) {
       btnResetFilters.addEventListener("click", () => {
         this.resetFilters();
@@ -104,27 +125,28 @@ class SearchController {
 
   toggleAdvancedSearch() {
     const panel = document.getElementById("advancedSearchPanel");
-    const btn = document.getElementById("btnAdvancedSearch");
+    const btn = document.querySelector(".btn-advanced-search");
 
     if (!panel) {
-      console.error("No se encontró el panel de búsqueda avanzada");
+      console.error("❌ No se encontró el panel de búsqueda avanzada");
       return;
     }
 
     this.advancedPanelOpen = !this.advancedPanelOpen;
 
     if (this.advancedPanelOpen) {
-      panel.classList.add("active");
+      panel.style.display = "block";
+      panel.classList.add("show");
       if (btn) btn.textContent = "Ocultar Filtros";
+      console.log("✅ Panel de filtros: abierto");
     } else {
-      panel.classList.remove("active");
+      panel.classList.remove("show");
+      setTimeout(() => {
+        panel.style.display = "none";
+      }, 300);
       if (btn) btn.textContent = "Filtros Avanzados";
+      console.log("✅ Panel de filtros: cerrado");
     }
-
-    console.log(
-      "Panel de filtros:",
-      this.advancedPanelOpen ? "abierto" : "cerrado",
-    );
   }
 
   updateGenreFilters() {
@@ -181,48 +203,68 @@ class SearchController {
       return;
     }
 
-    console.log("Aplicando filtros:", filters);
+    console.log("🔍 Aplicando filtros:", filters);
 
     if (this.currentSection === "animes") {
       let items = animeModel.getAllAnimes();
 
       if (filters.genre) {
-        items = items.filter(
-          (anime) =>
-            anime.genres && anime.genres.some((g) => g.name === filters.genre),
+        items = items.filter((anime) =>
+          anime.genre.toLowerCase().includes(filters.genre.toLowerCase()),
         );
       }
 
       items = items.filter((anime) => {
-        const year = anime.year || 0;
+        const year = parseInt(anime.year) || 0;
         return year >= filters.yearMin && year <= filters.yearMax;
       });
 
       items = items.filter((anime) => {
-        const rating = parseFloat(anime.score) || 0;
+        const rating = parseFloat(anime.rating) || 0;
         return rating >= filters.rating;
       });
+
+      // Ordenar
+      if (filters.sort === "rating") {
+        items.sort(
+          (a, b) => parseFloat(b.rating || 0) - parseFloat(a.rating || 0),
+        );
+      } else if (filters.sort === "year") {
+        items.sort((a, b) => parseInt(b.year || 0) - parseInt(a.year || 0));
+      } else if (filters.sort === "title") {
+        items.sort((a, b) => a.title.localeCompare(b.title));
+      }
 
       animeController.renderAnimeGrid(items);
     } else if (this.currentSection === "games") {
       let items = gameModel.getAllGames();
 
       if (filters.genre) {
-        items = items.filter(
-          (game) =>
-            game.genres && game.genres.some((g) => g.name === filters.genre),
+        items = items.filter((game) =>
+          game.genre.toLowerCase().includes(filters.genre.toLowerCase()),
         );
       }
 
       items = items.filter((game) => {
-        const year = game.released ? new Date(game.released).getFullYear() : 0;
+        const year = parseInt(game.year) || 0;
         return year >= filters.yearMin && year <= filters.yearMax;
       });
 
       items = items.filter((game) => {
-        const rating = (parseFloat(game.rating) || 0) * 10;
+        const rating = parseFloat(game.rating) || 0;
         return rating >= filters.rating;
       });
+
+      // Ordenar
+      if (filters.sort === "rating") {
+        items.sort(
+          (a, b) => parseFloat(b.rating || 0) - parseFloat(a.rating || 0),
+        );
+      } else if (filters.sort === "year") {
+        items.sort((a, b) => parseInt(b.year || 0) - parseInt(a.year || 0));
+      } else if (filters.sort === "title") {
+        items.sort((a, b) => a.title.localeCompare(b.title));
+      }
 
       gameController.renderGameGrid(items);
     }
@@ -241,9 +283,9 @@ class SearchController {
     document.getElementById("filterSort").value = "relevance";
 
     if (this.currentSection === "animes") {
-      animeController.loadAnimes(1);
+      animeController.renderAnimeGrid();
     } else {
-      gameController.loadGames(1);
+      gameController.renderGameGrid();
     }
   }
 }
