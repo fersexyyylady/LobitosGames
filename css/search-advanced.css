@@ -81,7 +81,7 @@
 .filter-select:focus {
   outline: none;
   border-color: var(--primary-color);
-  background: rgba(104, 9, 229, 0.1);
+  background: rgb(32, 12, 59);
 }
 
 .year-range {

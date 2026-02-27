@@ -252,6 +252,8 @@ class PollingManager {
     this.frecuencia = 30000; // 30 segundos
     this.maxFrecuencia = 120000; // máximo 2 minutos (backoff)
     this.errorCount = 0;
+    this.maxErrors = 3; // Detenerse después de 3 errores consecutivos
+    this.detenidoPorErrores = false;
   }
 
   /**
@@ -260,8 +262,17 @@ class PollingManager {
    */
   iniciar(callback) {
     if (this.intervaloActivo) return;
+    if (this.detenidoPorErrores) {
+      console.warn(
+        "[Polling] Detenido por errores consecutivos. No se reinicia automáticamente.",
+      );
+      return;
+    }
 
     const ejecutar = async () => {
+      // Si ya fue detenido externamente, no hacer nada
+      if (!this.intervaloActivo && this.errorCount > 0) return;
+
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 8000);
@@ -285,21 +296,26 @@ class PollingManager {
           this.mostrarNotificacionNuevos(nuevos.length);
         }
 
-        // Resetear errores y frecuencia en éxito
+        // Resetear errores en éxito
         this.errorCount = 0;
         this.frecuencia = 30000;
       } catch (error) {
         if (error.name !== "AbortError") {
           this.errorCount++;
-          // Backoff exponencial: duplicar el intervalo hasta el máximo
-          this.frecuencia = Math.min(
-            this.frecuencia * Math.pow(2, this.errorCount),
-            this.maxFrecuencia,
-          );
           console.warn(
-            `[Polling] Error #${this.errorCount}, próxima en ${this.frecuencia / 1000}s`,
+            `[Polling] Error #${this.errorCount}/${this.maxErrors}: ${error.message}`,
           );
-          this.reiniciar(callback);
+
+          // Detener completamente si se superan los errores máximos
+          if (this.errorCount >= this.maxErrors) {
+            this.detener();
+            this.detenidoPorErrores = true;
+            console.warn(
+              "[Polling] Detenido permanentemente tras " +
+                this.maxErrors +
+                " errores. La API no está disponible en este entorno.",
+            );
+          }
         }
       }
     };
@@ -315,7 +331,9 @@ class PollingManager {
 
   reiniciar(callback) {
     this.detener();
-    setTimeout(() => this.iniciar(callback), this.frecuencia);
+    if (!this.detenidoPorErrores) {
+      setTimeout(() => this.iniciar(callback), this.frecuencia);
+    }
   }
 
   detener() {

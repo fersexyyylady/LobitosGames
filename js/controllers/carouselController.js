@@ -32,52 +32,51 @@ class CarouselController {
       this.slides = [];
 
       // Agregar animes
+      // NOTA: getTopAnimes() devuelve objetos ya formateados por apiService.formatAnime()
+      // Sus campos son: id, title, image, rating, synopsis, year, genre (NO mal_id, images, score, etc.)
       if (topAnimes && topAnimes.length > 0) {
-        topAnimes.forEach((anime) => {
+        topAnimes.slice(0, 5).forEach((anime) => {
           this.slides.push({
             type: "anime",
-            id: anime.mal_id,
-            title: anime.title,
+            id: anime.id,
+            title: anime.title || "Sin título",
             image:
-              anime.images?.jpg?.large_image_url ||
-              anime.images?.jpg?.image_url ||
-              "https://via.placeholder.com/800x450?text=Anime",
-            rating: anime.score || "N/A",
+              anime.image ||
+              "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450'%3E%3Crect fill='%236809e5' width='800' height='450'/%3E%3Ctext fill='white' x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='28'%3EAnime%3C/text%3E%3C/svg%3E",
+            rating: anime.rating || "N/A",
             description: this.truncateDescription(
               anime.synopsis || "Sin descripción disponible",
               120,
             ),
-            year: anime.year || anime.aired?.prop?.from?.year || "N/A",
-            genre:
-              anime.genres
-                ?.map((g) => g.name)
-                .slice(0, 2)
-                .join(", ") || "Anime",
+            year: anime.year || "N/A",
+            genre: anime.genre
+              ? anime.genre.split(", ").slice(0, 2).join(", ")
+              : "Anime",
           });
         });
       }
 
       // Agregar juegos
+      // NOTA: gameModel.getAllGames() también devuelve objetos formateados por apiService.formatGame()
+      // Sus campos son: id, title, image, rating, synopsis, year, genre (NO background_image, etc.)
       if (topGames && topGames.length > 0) {
-        topGames.forEach((game) => {
+        topGames.slice(0, 5).forEach((game) => {
           this.slides.push({
             type: "game",
             id: game.id,
-            title: game.name,
+            title: game.title || game.name || "Sin título",
             image:
-              game.background_image ||
-              "https://via.placeholder.com/800x450?text=Game",
+              game.image ||
+              "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450'%3E%3Crect fill='%234b09a0' width='800' height='450'/%3E%3Ctext fill='white' x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='28'%3EGame%3C/text%3E%3C/svg%3E",
             rating: game.rating || "N/A",
             description: this.truncateDescription(
-              game.description_raw || "Sin descripción disponible",
+              game.synopsis || "Sin descripción disponible",
               120,
             ),
-            year: game.released ? new Date(game.released).getFullYear() : "N/A",
-            genre:
-              game.genres
-                ?.map((g) => g.name)
-                .slice(0, 2)
-                .join(", ") || "Videojuego",
+            year: game.year || "N/A",
+            genre: game.genre
+              ? game.genre.split(", ").slice(0, 2).join(", ")
+              : "Videojuego",
           });
         });
       }
@@ -103,7 +102,8 @@ class CarouselController {
         type: "anime",
         id: 1,
         title: "Cargando contenido...",
-        image: "https://via.placeholder.com/800x450?text=LobitosGames",
+        image:
+          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450'%3E%3Crect fill='%23141414' width='800' height='450'/%3E%3Ctext fill='%236809e5' x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='36'%3ELobitosGames%3C/text%3E%3C/svg%3E",
         rating: "9.0",
         description:
           "Descubre los mejores animes y videojuegos en LobitosGames",
@@ -157,7 +157,7 @@ class CarouselController {
         <div class="carousel-image">
           <img src="${slide.image}" 
                alt="${slide.title}"
-               onerror="this.src='https://via.placeholder.com/800x450?text=${encodeURIComponent(slide.title)}'">
+               onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450'%3E%3Crect fill='%236809e5' width='800' height='450'/%3E%3Ctext fill='white' x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='24'%3ESin imagen%3C/text%3E%3C/svg%3E'">
           <div class="carousel-gradient"></div>
         </div>
         <div class="carousel-content">

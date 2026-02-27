@@ -1,3 +1,7 @@
+// Placeholder local para avatar de usuario
+const PLACEHOLDER_USER =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Crect width='100%25' height='100%25' fill='%231a0533'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='18' fill='%236809e5'%3EUser%3C/text%3E%3C/svg%3E";
+
 // js/models/userModel.js
 // Modelo de Usuario - CORREGIDO con usuario de prueba funcional
 
@@ -225,7 +229,7 @@ class UserModel {
    * @returns {string}
    */
   getDefaultAvatar() {
-    return "https://via.placeholder.com/150/6809e5/FFFFFF?text=User";
+    return PLACEHOLDER_USER;
   }
 
   /**

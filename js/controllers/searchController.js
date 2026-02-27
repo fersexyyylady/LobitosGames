@@ -68,17 +68,9 @@ class SearchController {
       });
     }
 
-    // CORREGIDO: Botón de filtros avanzados - usar clase en lugar de ID
-    const btnAdvancedSearch = document.querySelector(".btn-advanced-search");
-    if (btnAdvancedSearch) {
-      console.log("✅ Botón de filtros avanzados encontrado");
-      btnAdvancedSearch.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.toggleAdvancedSearch();
-      });
-    } else {
-      console.warn("⚠️ Botón de filtros avanzados no encontrado");
-    }
+    // NOTA: el botón .btn-advanced-search ya tiene onclick="searchController.toggleAdvancedSearch()"
+    // en el HTML, así que NO agregamos addEventListener aquí para evitar que se dispare dos veces
+    // (lo que causaría que el panel se abriera y cerrara inmediatamente).
 
     // Botones de aplicar y limpiar filtros
     const btnApplyFilters = document.querySelector(".btn-apply-filters");

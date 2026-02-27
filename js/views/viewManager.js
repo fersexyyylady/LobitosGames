@@ -1,3 +1,9 @@
+// Placeholders locales (sin dependencia de via.placeholder.com)
+const PLACEHOLDER_280x200 =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='200'%3E%3Crect width='100%25' height='100%25' fill='%231a0533'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='18' fill='%236809e5'%3ENo+Image%3C/text%3E%3C/svg%3E";
+const PLACEHOLDER_200x280 =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='280'%3E%3Crect width='100%25' height='100%25' fill='%231a0533'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='18' fill='%236809e5'%3ENo+Image%3C/text%3E%3C/svg%3E";
+
 // js/views/viewManager.js
 // ACTUALIZADO con soporte de paginación y sección de listas
 
@@ -127,7 +133,7 @@ class ViewManager {
 
         return `
                 <div class="catalog-item" onclick="${controller}.showDetails(${item.id})">
-                    <img src="${item.image}" alt="${item.title}" class="item-poster" onerror="this.src='https://via.placeholder.com/280x200/6809e5/FFFFFF?text=No+Image'">
+                    <img src="${item.image}" alt="${item.title}" class="item-poster" onerror="this.onerror=null;this.src=PLACEHOLDER_280x200">
                     <div class="item-info">
                         <h3>${item.title}</h3>
                         <div class="item-meta">
@@ -182,7 +188,7 @@ class ViewManager {
 
         return `
           <div class="catalog-item" onclick="${controller}.showDetails(${item.id})">
-            <img src="${item.image}" alt="${item.title}" class="item-poster" onerror="this.src='https://via.placeholder.com/200x280/6809e5/FFFFFF?text=No+Image'">
+            <img src="${item.image}" alt="${item.title}" class="item-poster" onerror="this.onerror=null;this.src=PLACEHOLDER_200x280">
             <div class="item-info">
               <h3>${item.title}</h3>
               <div class="item-meta">
