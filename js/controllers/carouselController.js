@@ -1,4 +1,3 @@
-// js/controllers/carouselController.js - CORREGIDO
 class CarouselController {
   constructor() {
     this.currentIndex = 0;
