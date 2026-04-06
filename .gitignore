@@ -1,6 +1,16 @@
 node_modules/ 
+
+server/.env
 .env 
+
+server/logs/
 *.log
+
+.DS_Store
+Thumbs.db
+
+.vscode/settings.json
+.idea/
+
 dist/
 build/
-.DS_Store
