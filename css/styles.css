@@ -939,3 +939,48 @@ body {
     align-items: flex-start;
   }
 }
+
+/* ── FIX género filter y selects — pegar al final de css/styles.css ── */
+
+/* Genre filter visible en modo oscuro y claro */
+.genre-filter,
+select.genre-filter {
+  background: var(--bg-input, #1a0533) !important;
+  color: var(--text-primary, #e0e0e0) !important;
+  border: 2px solid var(--primary-color, #6809e5) !important;
+  padding: 8px 15px;
+  border-radius: 5px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.genre-filter option,
+select.genre-filter option {
+  background: var(--bg-input, #1a0533) !important;
+  color: var(--text-primary, #e0e0e0) !important;
+}
+
+/* Modo claro explícito */
+[data-theme="light"] .genre-filter,
+[data-theme="light"] select.genre-filter {
+  background: #ffffff !important;
+  color: #1a1a2e !important;
+  border-color: #6809e5 !important;
+}
+
+[data-theme="light"] .genre-filter option,
+[data-theme="light"] select.genre-filter option {
+  background: #ffffff !important;
+  color: #1a1a2e !important;
+}
+
+/* Todos los select del sitio (filters, preferences) */
+select {
+  background: var(--bg-input, #1a0533);
+  color: var(--text-primary, #e0e0e0);
+}
+
+[data-theme="light"] select {
+  background: #ffffff;
+  color: #1a1a2e;
+}

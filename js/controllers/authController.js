@@ -1,6 +1,6 @@
 // js/controllers/authController.js
-// FIX updateAuthUI: soporta tanto id="authButtons" como id="guestMenu"
-// FIX reCAPTCHA: widget IDs rastreados manualmente para login y registro
+// FIX CRÍTICO: handleLogin, handleRegister, handleResetRequest usan await
+// para esperar la respuesta async del backend correctamente.
 
 class AuthController {
   constructor() {
@@ -94,27 +94,74 @@ class AuthController {
   // ── Formularios ───────────────────────────────────────────────────────────────
 
   _bindForms() {
-    document.getElementById("loginForm")?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      this.handleLogin();
-    });
-    document.getElementById("registerForm")?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      this.handleRegister();
-    });
-    document.getElementById("mfaForm")?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      this.handleMfaVerification();
-    });
-    document
-      .getElementById("changePasswordForm")
-      ?.addEventListener("submit", (e) => {
+    // Login
+    const loginForm = document.getElementById("loginForm");
+    if (loginForm) {
+      loginForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        this.handleLogin();
+      });
+    }
+    const loginBtn = document.querySelector("#loginForm .btn-primary");
+    if (loginBtn) {
+      loginBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.handleLogin();
+      });
+    }
+
+    // Registro
+    const registerForm = document.getElementById("registerForm");
+    if (registerForm) {
+      registerForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        this.handleRegister();
+      });
+    }
+    const registerBtn = document.querySelector("#registerForm .btn-primary");
+    if (registerBtn) {
+      registerBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.handleRegister();
+      });
+    }
+
+    // MFA
+    const mfaForm = document.getElementById("mfaForm");
+    if (mfaForm) {
+      mfaForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        this.handleMfaVerification();
+      });
+    }
+
+    // Reset por email
+    const resetEmailBtn = document.getElementById("resetEmailBtn");
+    if (resetEmailBtn) {
+      resetEmailBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.handleResetRequest();
+      });
+    }
+
+    // Reset confirm
+    const resetConfirmBtn = document.getElementById("resetConfirmBtn");
+    if (resetConfirmBtn) {
+      resetConfirmBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.handleResetPassword();
+      });
+    }
+
+    // Cambiar contraseña (settings)
+    const changePassForm = document.getElementById("changePasswordForm");
+    if (changePassForm) {
+      changePassForm.addEventListener("submit", (e) => {
         e.preventDefault();
         this.handleChangePassword();
       });
+    }
   }
-
-  // ── Tema ──────────────────────────────────────────────────────────────────────
 
   _bindThemeSwitch() {
     const sw = document.getElementById("themeSwitch");
@@ -183,9 +230,8 @@ class AuthController {
     document.body.style.overflow = "";
   }
 
-  // ── Login ─────────────────────────────────────────────────────────────────────
-
-  handleLogin() {
+  // ── Login — CORREGIDO: usa await ──────────────────────────────────────────────
+  async handleLogin() {
     const emailOrUsername = document.getElementById("loginEmail")?.value.trim();
     const password = document.getElementById("loginPassword")?.value;
 
@@ -198,49 +244,68 @@ class AuthController {
       return this.showError("Completa todos los campos.", "loginEmailError");
     if (!this._validateRecaptcha("login")) return;
 
-    const result = this.model.login(emailOrUsername, password);
-
-    if (result.requiresMfa) {
-      this.closeAuthModals();
-      document.getElementById("mfaModal")?.classList.add("active");
-      return;
+    // Mostrar estado de carga
+    const btn = document.querySelector("#loginForm .btn-primary");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Iniciando sesión...";
     }
 
-    if (result.success) {
-      this.closeAuthModals();
-      this.updateAuthUI();
-      AuthMiddleware.applyRoleVisibility();
-      this._applyTheme(result.user.tema || "dark");
-      document.getElementById("loginForm").reset();
-      this._resetRecaptcha("loginRecaptcha");
-      this.showMessage(
-        `¡Bienvenido ${result.user.nombre}! (Rol: ${result.user.role})`,
-        "success",
-      );
-    } else {
-      this.showError(result.error, "loginEmailError");
-      this._resetRecaptcha("loginRecaptcha");
+    try {
+      // *** AWAIT — sin esto el resultado era una Promise, no un objeto ***
+      const result = await this.model.login(emailOrUsername, password);
+
+      if (result?.requiresMfa) {
+        this.closeAuthModals();
+        document.getElementById("mfaModal")?.classList.add("active");
+        return;
+      }
+
+      if (result?.success) {
+        this.closeAuthModals();
+        this.updateAuthUI();
+        AuthMiddleware.applyRoleVisibility();
+        this._applyTheme(result.user?.tema || "dark");
+        document.getElementById("loginForm").reset();
+        this._resetRecaptcha("loginRecaptcha");
+        this.showMessage(
+          `¡Bienvenido ${result.user?.nombre || ""}! (Rol: ${result.user?.role || "usuario"})`,
+          "success",
+        );
+      } else {
+        this.showError(
+          result?.error || "Error al iniciar sesión.",
+          "loginEmailError",
+        );
+        this._resetRecaptcha("loginRecaptcha");
+      }
+    } catch (err) {
+      console.error("[Login error]", err);
+      this.showError("Error de conexión al servidor.", "loginEmailError");
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Iniciar Sesión";
+      }
     }
   }
 
   // ── MFA ───────────────────────────────────────────────────────────────────────
-
-  handleMfaVerification() {
+  async handleMfaVerification() {
     const code = document.getElementById("mfaCode")?.value.trim();
-    const result = this.model.verifyMfa(code);
+    const result = await this.model.verifyMfa(code);
     if (result.success) {
       document.getElementById("mfaModal")?.classList.remove("active");
       this.updateAuthUI();
       AuthMiddleware.applyRoleVisibility();
-      this._applyTheme(result.user.tema || "dark");
-      this.showMessage(`¡Bienvenido ${result.user.nombre}!`, "success");
+      this._applyTheme(result.user?.tema || "dark");
+      this.showMessage(`¡Bienvenido ${result.user?.nombre || ""}!`, "success");
     } else {
       this.showError(result.error, "mfaCodeError");
     }
   }
 
-  // ── Registro ──────────────────────────────────────────────────────────────────
-
+  // ── Registro — CORREGIDO: usa await ──────────────────────────────────────────
   async handleRegister() {
     const nombre = document.getElementById("regNombre")?.value.trim();
     const apellido = document.getElementById("regApellido")?.value.trim();
@@ -289,31 +354,49 @@ class AuthController {
       return;
     }
 
-    const result = this.model.register({
-      nombre,
-      apellido,
-      username,
-      email,
-      password,
-      secretQuestion,
-      secretAnswer,
-    });
-    if (result.success) {
-      this.showMessage(
-        "¡Registro exitoso! Ahora puedes iniciar sesión.",
-        "success",
-      );
-      this.closeAuthModals();
-      document.getElementById("registerForm").reset();
-      this._resetRecaptcha("registerRecaptcha");
-      this.showLoginModal();
-    } else {
-      this.showError(result.error, "regEmailError");
+    // Mostrar estado de carga
+    const btn = document.querySelector("#registerForm .btn-primary");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Registrando...";
+    }
+
+    try {
+      // *** AWAIT — sin esto el resultado era una Promise, no un objeto ***
+      const result = await this.model.register({
+        nombre,
+        apellido,
+        username,
+        email,
+        password,
+        secretQuestion,
+        secretAnswer,
+      });
+
+      if (result?.success) {
+        this.showMessage(
+          "¡Registro exitoso! Ahora puedes iniciar sesión.",
+          "success",
+        );
+        this.closeAuthModals();
+        document.getElementById("registerForm").reset();
+        this._resetRecaptcha("registerRecaptcha");
+        this.showLoginModal();
+      } else {
+        this.showError(result?.error || "Error al registrar.", "regEmailError");
+      }
+    } catch (err) {
+      console.error("[Register error]", err);
+      this.showError("Error de conexión al servidor.", "regEmailError");
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Crear Cuenta";
+      }
     }
   }
 
   // ── Logout ────────────────────────────────────────────────────────────────────
-
   handleLogout() {
     if (!confirm("¿Cerrar sesión?")) return;
     this.model.logout();
@@ -324,25 +407,41 @@ class AuthController {
     this.showMessage("Sesión cerrada.", "success");
   }
 
-  // ── Recuperación ──────────────────────────────────────────────────────────────
-
-  handleResetRequest() {
+  // ── Recuperación de contraseña — CORREGIDO: usa await ────────────────────────
+  async handleResetRequest() {
     const email = document.getElementById("resetEmail")?.value.trim();
     if (!email) return this.showError("Ingresa tu email.", "resetEmailError");
-    const result = this.model.requestPasswordReset(email);
-    this.showMessage(
-      result.message || result.error,
-      result.success ? "success" : "error",
-    );
-    if (result.success) {
-      const req = document.getElementById("resetRequestSection");
-      const pass = document.getElementById("resetPasswordSection");
-      if (req) req.style.display = "none";
-      if (pass) pass.style.display = "block";
+
+    const btn = document.getElementById("resetEmailBtn");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Enviando...";
+    }
+
+    try {
+      // *** AWAIT — requestPasswordReset es async en modo backend ***
+      const result = await this.model.requestPasswordReset(email);
+      this.showMessage(
+        result?.message || result?.error || "Procesado.",
+        result?.success ? "success" : "error",
+      );
+      if (result?.success) {
+        const req = document.getElementById("resetRequestSection");
+        const pass = document.getElementById("resetPasswordSection");
+        if (req) req.style.display = "none";
+        if (pass) pass.style.display = "block";
+      }
+    } catch (err) {
+      this.showError("Error de conexión.", "resetEmailError");
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Enviar instrucciones";
+      }
     }
   }
 
-  handleResetPassword() {
+  async handleResetPassword() {
     const token = document.getElementById("resetToken")?.value.trim();
     const newPass = document.getElementById("newPassword")?.value;
     const confirm = document.getElementById("confirmNewPassword")?.value;
@@ -351,12 +450,17 @@ class AuthController {
         "Las contraseñas no coinciden.",
         "confirmNewPasswordError",
       );
-    const result = this.model.resetPasswordWithToken(token, newPass);
-    this.showMessage(
-      result.message || result.error,
-      result.success ? "success" : "error",
-    );
-    if (result.success) this.showLoginModal();
+
+    try {
+      const result = await this.model.confirmPasswordReset(token, newPass);
+      this.showMessage(
+        result?.message || result?.error,
+        result?.success ? "success" : "error",
+      );
+      if (result?.success) this.closeAuthModals();
+    } catch (err) {
+      this.showError("Error de conexión.", "confirmNewPasswordError");
+    }
   }
 
   handleSmsResetRequest() {
@@ -386,8 +490,7 @@ class AuthController {
   }
 
   // ── Settings ──────────────────────────────────────────────────────────────────
-
-  handleChangePassword() {
+  async handleChangePassword() {
     const current = document.getElementById("currentPassword")?.value;
     const newPass = document.getElementById("newSettingsPassword")?.value;
     const confirm = document.getElementById("confirmSettingsPassword")?.value;
@@ -396,17 +499,18 @@ class AuthController {
         "Las contraseñas no coinciden.",
         "confirmSettingsPasswordError",
       );
-    const result = this.model.changePassword(current, newPass);
+
+    const result = await this.model.changePassword(current, newPass);
     this.showMessage(
       result.success ? "Contraseña actualizada." : result.error,
       result.success ? "success" : "error",
     );
   }
 
-  handleToggleMfa() {
+  async handleToggleMfa() {
     if (!AuthMiddleware.requireAuth()) return;
     const current = userModel.getCurrentUser().mfaEnabled;
-    const result = this.model.toggleMfa(!current);
+    const result = await this.model.toggleMfa(!current);
     this.showMessage(
       result.mfaEnabled ? "MFA activado." : "MFA desactivado.",
       "success",
@@ -450,10 +554,10 @@ class AuthController {
     this.renderActiveSessions();
   }
 
-  savePreferences() {
+  async savePreferences() {
     const tema = document.getElementById("prefersTema")?.value;
     const idioma = document.getElementById("prefersIdioma")?.value;
-    this.model.updatePreferences({ tema, idioma });
+    await this.model.updatePreferences({ tema, idioma });
     this._applyTheme(tema);
     this.showMessage("Preferencias guardadas.", "success");
   }
@@ -472,128 +576,121 @@ class AuthController {
   }
 
   // ── UI ────────────────────────────────────────────────────────────────────────
-
   updateAuthUI() {
-    const user = this.model.getCurrentUser();
-
-    // Soporta tanto id="authButtons" (original) como id="guestMenu" (alternativo)
-    const authBtns =
-      document.getElementById("authButtons") ||
-      document.getElementById("guestMenu");
+    const user = userModel.getCurrentUser();
+    const guestMenu =
+      document.getElementById("guestMenu") ||
+      document.getElementById("authButtons");
     const userMenu = document.getElementById("userMenu");
-    const myListsBtn = document.getElementById("myListsBtn");
-    const settingsBtn = document.getElementById("settingsBtn");
-    const adminBtn = document.getElementById("adminNavBtn");
+    const adminLink = document.querySelector('[data-section="admin-panel"]');
 
     if (user) {
-      if (authBtns) authBtns.style.display = "none";
-      if (userMenu) userMenu.style.display = "flex";
-      if (myListsBtn) myListsBtn.style.display = "";
-      if (settingsBtn) settingsBtn.style.display = "";
-      if (adminBtn)
-        adminBtn.style.display =
-          user.role === "admin" || user.role === "editor" ? "" : "none";
-
-      const nameEl = document.getElementById("usernameDisplay");
-      const roleEl = document.getElementById("userRoleBadge");
-      const avatarEl = document.getElementById("userAvatar");
-      if (nameEl) nameEl.textContent = user.username;
-      if (roleEl) {
-        roleEl.textContent = user.role;
-        roleEl.className = `role-badge role-${user.role}`;
+      if (guestMenu) guestMenu.style.display = "none";
+      if (userMenu) {
+        userMenu.style.display = "flex";
+        const nameEl =
+          userMenu.querySelector(".username") ||
+          userMenu.querySelector("#userName");
+        const avatarEl =
+          userMenu.querySelector(".user-avatar") ||
+          userMenu.querySelector("#userAvatar");
+        if (nameEl) nameEl.textContent = user.nombre || user.username;
+        if (avatarEl && user.avatar) avatarEl.src = user.avatar;
+        const roleEl =
+          userMenu.querySelector(".role-badge") ||
+          userMenu.querySelector("#userRoleBadge");
+        if (roleEl) {
+          roleEl.textContent = user.role || "usuario";
+          roleEl.className = `role-badge role-${user.role || "usuario"}`;
+        }
       }
-      if (avatarEl)
-        avatarEl.src =
-          user.avatar ||
-          `https://ui-avatars.com/api/?name=${encodeURIComponent(
-            (user.nombre || "U") + "+" + (user.apellido || ""),
-          )}&background=6809e5&color=fff&size=40`;
+      if (adminLink)
+        adminLink.style.display = userModel.isAdmin() ? "" : "none";
     } else {
-      if (authBtns) authBtns.style.display = "flex";
+      if (guestMenu) guestMenu.style.display = "flex";
       if (userMenu) userMenu.style.display = "none";
-      if (myListsBtn) myListsBtn.style.display = "none";
-      if (settingsBtn) settingsBtn.style.display = "none";
-      if (adminBtn) adminBtn.style.display = "none";
+      if (adminLink) adminLink.style.display = "none";
     }
   }
-
-  // ── Mensajes ──────────────────────────────────────────────────────────────────
 
   showMessage(msg, type = "info") {
-    const existing = document.getElementById("authMessage");
+    const existing = document.querySelector(".toast-message");
     if (existing) existing.remove();
-    const div = document.createElement("div");
-    div.id = "authMessage";
-    div.className = `toast-message ${type}`;
-    div.textContent = msg;
-    document.body.appendChild(div);
-    requestAnimationFrame(() => div.classList.add("visible"));
+    const toast = document.createElement("div");
+    toast.className = `toast-message ${type}`;
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add("visible"));
     setTimeout(() => {
-      div.classList.remove("visible");
-      setTimeout(() => div.remove(), 400);
-    }, 3500);
+      toast.classList.remove("visible");
+      setTimeout(() => toast.remove(), 400);
+    }, 4000);
   }
 
-  showError(msg, targetId) {
-    const el = document.getElementById(targetId);
-    if (el) {
-      el.textContent = msg;
-      el.style.display = "block";
-    } else {
-      this.showMessage(msg, "error");
+  showError(msg, fieldId) {
+    if (fieldId) {
+      const el = document.getElementById(fieldId);
+      if (el) {
+        el.textContent = msg;
+        el.style.display = "block";
+      }
     }
+    this.showMessage(msg, "error");
   }
 
-  // ── Validación ────────────────────────────────────────────────────────────────
+  // ── Validación de campo ───────────────────────────────────────────────────────
+  _validateField(inputId, type) {
+    const input = document.getElementById(inputId);
+    const errorId = inputId + "Error";
+    if (!input) return true;
+    const val = input.value.trim();
 
-  _validateField(fieldId, type) {
-    const field = document.getElementById(fieldId);
-    if (!field) return true;
-    const val = field.value.trim();
-    const errId = fieldId + "Error";
-
-    if (!val) {
-      this.showError("Este campo es obligatorio.", errId);
-      return false;
-    }
-
-    // Patrones sin caracteres acentuados en la clase (evita el SyntaxError del navegador)
-    const patterns = {
-      email: /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/,
-      username: /^[a-zA-Z0-9_\-]{3,20}$/,
-      password: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/,
-      // "name" solo verifica longitud — los caracteres acentuados los deja pasar
-      name: null,
+    const rules = {
+      name: { min: 2, max: 50, msg: "Mínimo 2 caracteres." },
+      username: {
+        min: 3,
+        max: 20,
+        regex: /^[a-zA-Z0-9_]+$/,
+        msg: "Solo letras, números y guiones bajos.",
+      },
+      email: {
+        regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+        msg: "Email inválido.",
+      },
+      password: {
+        min: 6,
+        regex: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/,
+        msg: "Mínimo 6 caracteres, una mayúscula y un número.",
+      },
+      confirmPassword: {
+        match: "regPassword",
+        msg: "Las contraseñas no coinciden.",
+      },
     };
 
-    const msgs = {
-      email: "Ingresa un correo electrónico válido.",
-      username: "Solo letras, números y guiones (3-20 caracteres).",
-      password:
-        "Mínimo 6 caracteres, una mayúscula, una minúscula y un número.",
-      name: null,
-    };
+    const rule = rules[type];
+    if (!rule) return true;
 
-    if (type === "confirmPassword") {
-      const pass = document.getElementById("regPassword")?.value;
-      if (val !== pass) {
-        this.showError("Las contraseñas no coinciden.", errId);
+    if (rule.match) {
+      const other = document.getElementById(rule.match)?.value;
+      if (val !== other) {
+        this.showError(rule.msg, errorId);
         return false;
       }
       return true;
     }
-
-    if (patterns[type] && !patterns[type].test(val)) {
-      this.showError(msgs[type], errId);
+    if (rule.min && val.length < rule.min) {
+      this.showError(rule.msg, errorId);
       return false;
     }
-
-    // Validación mínima de longitud para nombres
-    if (type === "name" && val.length < 2) {
-      this.showError("Mínimo 2 caracteres.", errId);
+    if (rule.max && val.length > rule.max) {
+      this.showError(`Máximo ${rule.max} caracteres.`, errorId);
       return false;
     }
-
+    if (rule.regex && !rule.regex.test(val)) {
+      this.showError(rule.msg, errorId);
+      return false;
+    }
     return true;
   }
 }
