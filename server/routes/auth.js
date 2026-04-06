@@ -1,7 +1,4 @@
 // server/routes/auth.js
-// Integrado con notificationService — envía emails reales con Nodemailer
-// y SMS reales con Twilio (o simula en consola si no están configurados)
-
 const router = require("express").Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -39,6 +36,18 @@ async function verifyRecaptcha(token) {
 function getDeviceInfo(req) {
   const ua = req.headers["user-agent"] || "";
   return /mobile/i.test(ua) ? "Móvil" : "Escritorio";
+}
+
+function authenticate(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith("Bearer "))
+    return res.status(401).json({ error: "No autenticado." });
+  try {
+    req.user = jwt.verify(auth.split(" ")[1], ACCESS_SECRET);
+    next();
+  } catch {
+    res.status(401).json({ error: "Token inválido o expirado." });
+  }
 }
 
 // ── POST /api/auth/register ───────────────────────────────────────────────────
@@ -133,14 +142,12 @@ router.post("/login", async (req, res) => {
     user.lockedUntil = null;
     await user.save();
 
-    // Si tiene MFA activo, enviar código por email y requerir verificación
     if (user.mfaEnabled) {
       const mfaCode = Math.floor(100000 + Math.random() * 900000).toString();
       user.mfaSecret = mfaCode;
       user.mfaExpiry = new Date(Date.now() + 10 * 60 * 1000);
       await user.save();
 
-      // Enviar código real por email
       await sendMfaCodeEmail(user.email, mfaCode, user.nombre);
 
       return res.json({ requiresMfa: true, userId: user._id });
@@ -166,6 +173,16 @@ router.post("/login", async (req, res) => {
   } catch (err) {
     console.error("[Login]", err);
     res.status(500).json({ error: "Error interno." });
+  }
+});
+
+// ── POST /api/auth/logout ─────────────────────────────────────────────────────
+router.post("/logout", authenticate, async (req, res) => {
+  try {
+    await Session.findByIdAndUpdate(req.user.sessionId, { isActive: false });
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: "Error." });
   }
 });
 
@@ -210,13 +227,12 @@ router.post("/mfa/verify", async (req, res) => {
   }
 });
 
-// ── POST /api/auth/reset/request (por email) ──────────────────────────────────
+// ── POST /api/auth/reset/request ─────────────────────────────────────────────
 router.post("/reset/request", async (req, res) => {
   try {
     const { email } = req.body;
     const user = await User.findOne({ email });
 
-    // Siempre responder igual para no revelar si el email existe
     const genericMsg =
       "Si el correo está registrado recibirás las instrucciones.";
 
@@ -228,7 +244,7 @@ router.post("/reset/request", async (req, res) => {
       .slice(0, 8)
       .toUpperCase();
     user.resetToken = token;
-    user.resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+    user.resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
     await user.save();
 
     const result = await sendPasswordResetEmail(email, token, user.nombre);
@@ -269,76 +285,6 @@ router.post("/reset/confirm", async (req, res) => {
   }
 });
 
-// ── POST /api/auth/reset/sms ──────────────────────────────────────────────────
-router.post("/reset/sms", async (req, res) => {
-  try {
-    const { phone } = req.body;
-    // En producción buscarías el usuario por su número de teléfono
-    // Por ahora generamos el código y lo enviamos al número proporcionado
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-
-    const result = await sendSmsOtp(phone, code, "usuario");
-
-    // Guardar el código temporalmente (en producción en la DB asociado al usuario)
-    // Para demo lo guardamos en memoria temporal
-    global._smsOtpStore = global._smsOtpStore || {};
-    global._smsOtpStore[phone] = {
-      code,
-      expiry: new Date(Date.now() + 10 * 60 * 1000),
-    };
-
-    if (result.demo) {
-      res.json({
-        success: true,
-        message: "Código enviado (demo: revisa la consola del servidor).",
-        demo: true,
-      });
-    } else {
-      res.json({ success: true, message: "Código enviado por SMS." });
-    }
-  } catch (err) {
-    console.error("[SMS Reset]", err);
-    res.status(500).json({ error: "Error enviando SMS." });
-  }
-});
-
-// ── POST /api/auth/reset/sms/verify ──────────────────────────────────────────
-router.post("/reset/sms/verify", async (req, res) => {
-  try {
-    const { phone, code, newPassword } = req.body;
-    const stored = global._smsOtpStore?.[phone];
-
-    if (!stored || stored.expiry < new Date() || stored.code !== code)
-      return res.status(400).json({ error: "Código inválido o expirado." });
-
-    delete global._smsOtpStore[phone];
-    res.json({
-      success: true,
-      message: "Código verificado. Puedes cambiar tu contraseña.",
-    });
-  } catch (err) {
-    res.status(500).json({ error: "Error." });
-  }
-});
-
-// ── POST /api/auth/logout ─────────────────────────────────────────────────────
-router.post("/logout", async (req, res) => {
-  try {
-    const auth = req.headers.authorization;
-    if (auth && auth.startsWith("Bearer ")) {
-      try {
-        const decoded = jwt.verify(auth.split(" ")[1], ACCESS_SECRET);
-        await Session.findByIdAndUpdate(decoded.sessionId, { isActive: false });
-      } catch {
-        /* token expirado, igual cerrar sesión */
-      }
-    }
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: "Error." });
-  }
-});
-
 // ── POST /api/auth/refresh ────────────────────────────────────────────────────
 router.post("/refresh", async (req, res) => {
   try {
@@ -363,15 +309,25 @@ router.post("/refresh", async (req, res) => {
 });
 
 // ── GET /api/auth/sessions ────────────────────────────────────────────────────
-router.get("/sessions", async (req, res) => {
+router.get("/sessions", authenticate, async (req, res) => {
   try {
-    const auth = req.headers.authorization;
-    if (!auth) return res.status(401).json({ error: "No autenticado." });
-    const decoded = jwt.verify(auth.split(" ")[1], ACCESS_SECRET);
-    const sessions = await Session.find({ userId: decoded.id, isActive: true });
+    const sessions = await Session.find({
+      userId: req.user.id,
+      isActive: true,
+    });
     res.json({ sessions });
   } catch {
-    res.status(401).json({ error: "Token inválido." });
+    res.status(500).json({ error: "Error." });
+  }
+});
+
+// ── DELETE /api/auth/sessions/:id/revoke ─────────────────────────────────────
+router.delete("/sessions/:id/revoke", authenticate, async (req, res) => {
+  try {
+    await Session.findByIdAndUpdate(req.params.id, { isActive: false });
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: "Error." });
   }
 });
 

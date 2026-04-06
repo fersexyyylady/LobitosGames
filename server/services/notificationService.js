@@ -1,12 +1,11 @@
 // server/services/notificationService.js
-// Servicio real de correo (Nodemailer) y SMS (Twilio)
 // Requiere en .env:
 //   MAIL_HOST, MAIL_PORT, MAIL_USER, MAIL_PASS, MAIL_FROM
 //   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER
 
 const nodemailer = require("nodemailer");
 
-// ── Twilio (opcional — solo si está configurado) ──────────────────────────────
+// ── Twilio ────────────────────────────────────────────────────────────────────
 let twilioClient = null;
 try {
   if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
@@ -30,7 +29,6 @@ function createMailTransporter() {
   const pass = process.env.MAIL_PASS;
 
   if (!host || !user || !pass) {
-    // Sin credenciales: usar Ethereal (captura emails sin enviarlos, útil para pruebas)
     return null;
   }
 
@@ -43,7 +41,7 @@ function createMailTransporter() {
   });
 }
 
-// ── Enviar email de recuperación de contraseña ────────────────────────────────
+// ── Email: recuperación de contraseña ─────────────────────────────────────────
 async function sendPasswordResetEmail(toEmail, resetToken, userName) {
   const transporter = createMailTransporter();
 
@@ -77,7 +75,6 @@ async function sendPasswordResetEmail(toEmail, resetToken, userName) {
     </html>`;
 
   if (!transporter) {
-    // Modo demo: usar Ethereal para capturar el email sin enviarlo
     try {
       const testAccount = await nodemailer.createTestAccount();
       const testTransporter = nodemailer.createTransport({
@@ -117,34 +114,36 @@ async function sendPasswordResetEmail(toEmail, resetToken, userName) {
     return { success: true };
   } catch (error) {
     console.error("❌ Error enviando email:", error.message);
-    // Fallback: mostrar token en consola para no bloquear el flujo
     console.log(`🔑 (fallback) Token para ${toEmail}: ${resetToken}`);
     return { success: false, error: error.message };
   }
 }
 
-// ── Enviar email de código MFA ────────────────────────────────────────────────
+// ── Email: código MFA ─────────────────────────────────────────────────────────
 async function sendMfaCodeEmail(toEmail, code, userName) {
   const transporter = createMailTransporter();
 
   const html = `
     <!DOCTYPE html>
     <html>
+    <head><meta charset="UTF-8"></head>
     <body style="font-family: sans-serif; background:#0d0d1a; color:#e0e0e0; padding:40px;">
       <div style="max-width:500px; margin:0 auto; background:#1a0533; border-radius:12px; padding:32px; border:1px solid #6809e5;">
-        <h2 style="color:#6809e5;">LobitosGames — Verificación en dos pasos</h2>
+        <h2 style="color:#6809e5; margin-bottom:8px;">LobitosGames</h2>
+        <h3 style="margin-bottom:16px;">Código de verificación</h3>
         <p>Hola <strong>${userName || "usuario"}</strong>,</p>
-        <p>Tu código de verificación es:</p>
-        <div style="background:#0d0d1a; border:1px solid #6809e5; border-radius:8px; padding:20px; text-align:center; font-size:36px; font-weight:bold; letter-spacing:8px; color:#9f59fc; margin:20px 0;">
+        <p>Tu código de autenticación de dos factores es:</p>
+        <div style="background:#0d0d1a; border:1px solid #6809e5; border-radius:8px; padding:20px; text-align:center; font-size:32px; font-weight:bold; letter-spacing:8px; color:#9f59fc; margin:20px 0;">
           ${code}
         </div>
-        <p style="color:#888; font-size:13px;">Este código expira en 10 minutos.</p>
+        <p style="color:#888; font-size:13px;">
+          Este código expira en 10 minutos. Si no intentaste iniciar sesión, ignora este correo.
+        </p>
       </div>
     </body>
     </html>`;
 
   if (!transporter) {
-    // Demo: Ethereal
     try {
       const testAccount = await nodemailer.createTestAccount();
       const testTransporter = nodemailer.createTransport({
@@ -155,16 +154,16 @@ async function sendMfaCodeEmail(toEmail, code, userName) {
       const info = await testTransporter.sendMail({
         from: `"LobitosGames" <${testAccount.user}>`,
         to: toEmail,
-        subject: "Código de verificación MFA — LobitosGames",
+        subject: "Tu código de verificación — LobitosGames",
         html,
       });
       console.log(
         `📧 [Demo] Código MFA en Ethereal: ${nodemailer.getTestMessageUrl(info)}`,
       );
-      console.log(`🔑 Código MFA para ${toEmail}: ${code}`);
+      console.log(`🔐 Código MFA para ${toEmail}: ${code}`);
       return { success: true, demo: true };
     } catch {
-      console.log(`🔑 Código MFA para ${toEmail}: ${code}`);
+      console.log(`🔐 Código MFA para ${toEmail}: ${code}`);
       return { success: true, demo: true };
     }
   }
@@ -173,36 +172,36 @@ async function sendMfaCodeEmail(toEmail, code, userName) {
     await transporter.sendMail({
       from: `"LobitosGames" <${process.env.MAIL_FROM || process.env.MAIL_USER}>`,
       to: toEmail,
-      subject: "Código de verificación MFA — LobitosGames",
+      subject: "Tu código de verificación — LobitosGames",
       html,
     });
+    console.log(`📧 Código MFA enviado a ${toEmail}`);
     return { success: true };
   } catch (error) {
     console.error("❌ Error enviando código MFA:", error.message);
-    console.log(`🔑 (fallback) Código MFA para ${toEmail}: ${code}`);
-    return { success: false };
+    console.log(`🔐 (fallback) Código MFA para ${toEmail}: ${code}`);
+    return { success: false, error: error.message };
   }
 }
 
-// ── Enviar SMS con OTP ────────────────────────────────────────────────────────
-async function sendSmsOtp(phoneNumber, code, userName) {
+// ── SMS: código OTP vía Twilio ────────────────────────────────────────────────
+async function sendSmsOtp(toPhone, code, userName) {
   if (!twilioClient) {
-    // Demo: mostrar en consola
-    console.log(`📱 [Demo SMS] Código OTP para ${phoneNumber}: ${code}`);
-    return { success: true, demo: true };
+    console.log(`📱 [Simulado] SMS para ${toPhone}: Código ${code}`);
+    return { success: true, simulated: true };
   }
 
   try {
-    await twilioClient.messages.create({
-      body: `Tu código de verificación de LobitosGames es: ${code}. Expira en 10 minutos.`,
+    const message = await twilioClient.messages.create({
+      body: `LobitosGames — Tu código de verificación es: ${code}. Expira en 10 minutos.`,
       from: process.env.TWILIO_FROM_NUMBER,
-      to: phoneNumber,
+      to: toPhone,
     });
-    console.log(`📱 SMS enviado a ${phoneNumber}`);
-    return { success: true };
+    console.log(`📱 SMS enviado a ${toPhone} (SID: ${message.sid})`);
+    return { success: true, sid: message.sid };
   } catch (error) {
     console.error("❌ Error enviando SMS:", error.message);
-    console.log(`📱 (fallback) Código para ${phoneNumber}: ${code}`);
+    console.log(`📱 (fallback) SMS para ${toPhone}: ${code}`);
     return { success: false, error: error.message };
   }
 }

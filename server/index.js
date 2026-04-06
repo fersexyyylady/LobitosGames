@@ -1,7 +1,4 @@
 // server/index.js
-// Backend LobitosGames — Node.js + Express + MongoDB
-// npm install express mongoose bcryptjs jsonwebtoken dotenv cors nodemailer
-
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
@@ -14,7 +11,7 @@ const app = express();
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
+    origin: process.env.CLIENT_ORIGIN || "http://127.0.0.1:5500",
     credentials: true,
   }),
 );

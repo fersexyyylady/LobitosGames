@@ -30,8 +30,11 @@ const userSchema = new mongoose.Schema(
     },
     mfaEnabled: { type: Boolean, default: false },
     mfaSecret: { type: String, default: null },
+    mfaExpiry: { type: Date, default: null },
     secretQuestion: { type: String, default: null },
-    secretAnswer: { type: String, default: null }, // almacenado hasheado
+    secretAnswer: { type: String, default: null },
+    resetToken: { type: String, default: null },
+    resetTokenExpiry: { type: Date, default: null },
     failedAttempts: { type: Number, default: 0 },
     lockedUntil: { type: Date, default: null },
     tema: { type: String, enum: ["dark", "light"], default: "dark" },
@@ -41,7 +44,6 @@ const userSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// Hashear contraseña antes de guardar
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
   const salt = await bcrypt.genSalt(12);
@@ -49,17 +51,17 @@ userSchema.pre("save", async function (next) {
   next();
 });
 
-// Comparar contraseña
 userSchema.methods.comparePassword = function (plain) {
   return bcrypt.compare(plain, this.password);
 };
 
-// Remover campos sensibles en JSON
 userSchema.methods.toSafeObject = function () {
   const obj = this.toObject();
   delete obj.password;
   delete obj.secretAnswer;
   delete obj.mfaSecret;
+  delete obj.resetToken;
+  delete obj.resetTokenExpiry;
   return obj;
 };
 

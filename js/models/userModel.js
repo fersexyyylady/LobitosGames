@@ -1,7 +1,11 @@
+// js/models/userModel.js
 const PLACEHOLDER_USER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Crect width='100%25' height='100%25' fill='%231a0533'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='18' fill='%236809e5'%3EUser%3C/text%3E%3C/svg%3E";
 
-const USE_BACKEND = false;
+// ─────────────────────────────────────────────────────────────
+// CAMBIA ESTO A true PARA USAR EL BACKEND REAL
+// ─────────────────────────────────────────────────────────────
+const USE_BACKEND = true;
 const API_BASE = "http://localhost:5000/api";
 
 function hashPassword(pwd) {
@@ -81,6 +85,16 @@ class UserModel {
     const raw = localStorage.getItem("lg_current_user");
     const tok = localStorage.getItem("lg_access_token");
     if (!raw || !tok) return;
+
+    if (USE_BACKEND) {
+      // En modo backend solo comprobamos que el token exista
+      // El servidor lo validará en cada petición
+      this.currentUser = JSON.parse(raw);
+      this.accessToken = tok;
+      this.isAuthenticated = true;
+      return;
+    }
+
     const check = JWTUtil.verify(tok, JWTUtil.SECRET);
     if (!check.valid) {
       this.logout();
@@ -107,14 +121,18 @@ class UserModel {
 
   async register(data) {
     if (USE_BACKEND) {
-      const res = await fetch(`${API_BASE}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      const json = await res.json();
-      if (!res.ok) return { success: false, error: json.error };
-      return { success: true, user: json.user };
+      try {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        const json = await res.json();
+        if (!res.ok) return { success: false, error: json.error };
+        return { success: true, user: json.user };
+      } catch (err) {
+        return { success: false, error: "Error de conexión al servidor." };
+      }
     }
 
     const users = this._getUsers();
@@ -151,7 +169,6 @@ class UserModel {
 
   login(emailOrUsername, password) {
     if (USE_BACKEND) {
-      // En modo backend el login es async; aquí hacemos la llamada
       return this._loginBackend(emailOrUsername, password);
     }
 
@@ -202,7 +219,12 @@ class UserModel {
       });
       const json = await res.json();
       if (!res.ok) return { success: false, error: json.error };
-      // Guardar tokens del servidor
+
+      if (json.requiresMfa) {
+        this.pendingMfaUserId = json.userId;
+        return { success: true, requiresMfa: true };
+      }
+
       this.currentUser = json.user;
       this.accessToken = json.accessToken;
       this.isAuthenticated = true;
@@ -217,7 +239,30 @@ class UserModel {
 
   // ── MFA ──────────────────────────────────────────────────────────────────────
 
-  verifyMfa(code) {
+  async verifyMfa(code) {
+    if (USE_BACKEND) {
+      try {
+        const res = await fetch(`${API_BASE}/auth/mfa/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: this.pendingMfaUserId, code }),
+        });
+        const json = await res.json();
+        if (!res.ok) return { success: false, error: json.error };
+
+        this.currentUser = json.user;
+        this.accessToken = json.accessToken;
+        this.isAuthenticated = true;
+        this.pendingMfaUserId = null;
+        localStorage.setItem("lg_current_user", JSON.stringify(json.user));
+        localStorage.setItem("lg_access_token", json.accessToken);
+        localStorage.setItem("lg_refresh_token", json.refreshToken);
+        return { success: true, user: json.user };
+      } catch (err) {
+        return { success: false, error: "Error de conexión al servidor." };
+      }
+    }
+
     if (!this.pendingMfaUser)
       return { success: false, error: "No hay sesión MFA pendiente" };
     const codes = JSON.parse(localStorage.getItem("lg_mfa_codes") || "[]");
@@ -261,240 +306,306 @@ class UserModel {
       ipAddress: "127.0.0.1",
       userAgent: navigator.userAgent.slice(0, 120),
       deviceInfo: /mobile/i.test(navigator.userAgent) ? "Móvil" : "Escritorio",
-      isActive: true,
       createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      isActive: true,
     };
+
     const sessions = JSON.parse(localStorage.getItem("lg_sessions") || "[]");
     sessions.push(session);
     localStorage.setItem("lg_sessions", JSON.stringify(sessions));
 
-    const userWithSess = { ...user, sessionId };
-    const accessToken = JWTUtil.generateAccessToken(userWithSess);
-    const refreshToken = JWTUtil.generateRefreshToken(userWithSess);
-    this.currentUser = this._sanitize(userWithSess);
-    this.accessToken = accessToken;
+    const userWithSession = { ...user, sessionId };
+    this.currentUser = this._sanitize(userWithSession);
     this.isAuthenticated = true;
+
+    const accessToken = JWTUtil.generateAccessToken(this.currentUser);
+    const refreshToken = JWTUtil.generateRefreshToken(this.currentUser);
+    this.accessToken = accessToken;
+
     localStorage.setItem("lg_current_user", JSON.stringify(this.currentUser));
     localStorage.setItem("lg_access_token", accessToken);
     localStorage.setItem("lg_refresh_token", refreshToken);
-    this._logSecurity(user.id, "login_success", "Login exitoso");
-    return { success: true, user: this.currentUser, accessToken, refreshToken };
-  }
 
-  // ── Refresh ──────────────────────────────────────────────────────────────────
-
-  refreshAccessToken() {
-    const rt = localStorage.getItem("lg_refresh_token");
-    if (!rt) return { success: false };
-    const check = JWTUtil.verify(rt, JWTUtil.REFRESH_SECRET);
-    if (!check.valid) {
-      this.logout();
-      return { success: false };
-    }
-    const users = this._getUsers();
-    const user = users.find((u) => u.id === check.payload.id);
-    if (!user) return { success: false };
-    const newAccess = JWTUtil.generateAccessToken({
-      ...user,
-      sessionId: check.payload.sessionId,
-    });
-    this.accessToken = newAccess;
-    localStorage.setItem("lg_access_token", newAccess);
-    return { success: true, accessToken: newAccess };
+    this._logSecurity(user.id, "login", "Inicio de sesión exitoso");
+    return { success: true, user: this.currentUser };
   }
 
   // ── Logout ───────────────────────────────────────────────────────────────────
 
-  logout(sessionId = null) {
-    if (sessionId) {
-      this._revokeSession(sessionId);
-      return;
+  logout() {
+    if (USE_BACKEND && this.accessToken) {
+      fetch(`${API_BASE}/auth/logout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.accessToken}`,
+        },
+      }).catch(() => {});
     }
-    if (this.currentUser?.sessionId)
-      this._revokeSession(this.currentUser.sessionId);
+
     this.currentUser = null;
-    this.accessToken = null;
     this.isAuthenticated = false;
+    this.accessToken = null;
     localStorage.removeItem("lg_current_user");
     localStorage.removeItem("lg_access_token");
     localStorage.removeItem("lg_refresh_token");
   }
 
-  _revokeSession(sessionId) {
-    const sessions = JSON.parse(
-      localStorage.getItem("lg_sessions") || "[]",
-    ).map((s) => (s.id === sessionId ? { ...s, isActive: false } : s));
-    localStorage.setItem("lg_sessions", JSON.stringify(sessions));
-  }
+  // ── Recuperación de contraseña ────────────────────────────────────────────────
 
-  getActiveSessions(userId) {
-    const sessions = JSON.parse(localStorage.getItem("lg_sessions") || "[]");
-    return sessions.filter(
-      (s) => s.userId === (userId || this.currentUser?.id) && s.isActive,
-    );
-  }
+  async requestPasswordReset(email) {
+    if (USE_BACKEND) {
+      try {
+        const res = await fetch(`${API_BASE}/auth/reset/request`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        const json = await res.json();
+        return { success: true, message: json.message };
+      } catch {
+        return { success: false, error: "Error de conexión." };
+      }
+    }
 
-  revokeSession(sessionId) {
-    this._revokeSession(sessionId);
-    this._logSecurity(this.currentUser?.id, "session_revoked", sessionId);
-  }
-
-  // ── Recovery ─────────────────────────────────────────────────────────────────
-
-  requestPasswordReset(email) {
     const users = this._getUsers();
     const user = users.find((u) => u.email === email);
-    if (!user) return { success: false, error: "Email no registrado" };
-    const token = generateId();
-    const resets = JSON.parse(
-      localStorage.getItem("lg_password_resets") || "[]",
-    );
-    resets.push({
-      userId: user.id,
-      token,
-      used: false,
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-    });
-    localStorage.setItem("lg_password_resets", JSON.stringify(resets));
-    console.log(`[RESET] Token: ${token}`);
+    if (!user)
+      return {
+        success: true,
+        message: "Si el correo está registrado recibirás instrucciones.",
+      };
+
+    const token = Math.random().toString(36).slice(2, 10).toUpperCase();
+    user.resetToken = token;
+    user.resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    this._saveUsers(users.map((u) => (u.email === email ? user : u)));
+    console.log(`[Reset] Token para ${email}: ${token}`);
     return {
       success: true,
-      message: "Token generado (ver consola para demo).",
-      token,
+      message: "Si el correo está registrado recibirás instrucciones.",
     };
   }
 
-  resetPasswordWithToken(token, newPassword) {
-    const resets = JSON.parse(
-      localStorage.getItem("lg_password_resets") || "[]",
-    );
-    const entry = resets.find(
-      (r) => r.token === token && !r.used && new Date(r.expiresAt) > new Date(),
-    );
-    if (!entry) return { success: false, error: "Token inválido o expirado" };
+  async confirmPasswordReset(token, newPassword) {
+    if (USE_BACKEND) {
+      try {
+        const res = await fetch(`${API_BASE}/auth/reset/confirm`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, newPassword }),
+        });
+        const json = await res.json();
+        if (!res.ok) return { success: false, error: json.error };
+        return { success: true, message: json.message };
+      } catch {
+        return { success: false, error: "Error de conexión." };
+      }
+    }
+
     const users = this._getUsers();
-    const idx = users.findIndex((u) => u.id === entry.userId);
-    if (idx === -1) return { success: false, error: "Usuario no encontrado" };
-    users[idx].password = hashPassword(newPassword);
-    this._saveUsers(users);
-    entry.used = true;
-    localStorage.setItem("lg_password_resets", JSON.stringify(resets));
+    const user = users.find(
+      (u) =>
+        u.resetToken === token &&
+        u.resetTokenExpiry &&
+        new Date(u.resetTokenExpiry) > new Date(),
+    );
+    if (!user) return { success: false, error: "Token inválido o expirado." };
+
+    user.password = hashPassword(newPassword);
+    user.resetToken = null;
+    user.resetTokenExpiry = null;
+    this._saveUsers(users.map((u) => (u.id === user.id ? user : u)));
     return { success: true, message: "Contraseña actualizada." };
   }
 
-  requestSmsReset(userId) {
-    const otp = generateOTP();
-    const codes = JSON.parse(localStorage.getItem("lg_mfa_codes") || "[]");
-    codes.push({
-      userId,
-      code: otp,
-      type: "sms_reset",
-      used: false,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-    });
-    localStorage.setItem("lg_mfa_codes", JSON.stringify(codes));
-    console.log(`[SMS] OTP userId ${userId}: ${otp}`);
-    return { success: true, message: "OTP enviado (ver consola)" };
-  }
+  // ── Cambiar contraseña (desde settings) ─────────────────────────────────────
 
-  verifySmsReset(userId, code, newPassword) {
-    const codes = JSON.parse(localStorage.getItem("lg_mfa_codes") || "[]");
-    const entry = codes.find(
-      (c) =>
-        c.userId === userId &&
-        c.code === code &&
-        c.type === "sms_reset" &&
-        !c.used &&
-        new Date(c.expiresAt) > new Date(),
-    );
-    if (!entry) return { success: false, error: "Código inválido o expirado" };
-    const users = this._getUsers();
-    const idx = users.findIndex((u) => u.id === userId);
-    users[idx].password = hashPassword(newPassword);
-    this._saveUsers(users);
-    entry.used = true;
-    localStorage.setItem("lg_mfa_codes", JSON.stringify(codes));
-    return { success: true, message: "Contraseña restablecida." };
-  }
-
-  verifySecretQuestion(emailOrUsername, answer) {
-    const users = this._getUsers();
-    const user = users.find(
-      (u) => u.email === emailOrUsername || u.username === emailOrUsername,
-    );
-    if (!user || !user.secretAnswer)
-      return { success: false, error: "Datos incorrectos" };
-    if (answer && user.secretAnswer !== hashPassword(answer))
-      return { success: false, error: "Respuesta incorrecta" };
-    return { success: true, userId: user.id, question: user.secretQuestion };
-  }
-
-  // ── Settings ─────────────────────────────────────────────────────────────────
-
-  changePassword(currentPassword, newPassword) {
-    if (!this.isLoggedIn()) return { success: false, error: "No autenticado" };
-    const users = this._getUsers();
-    const user = users.find((u) => u.id === this.currentUser.id);
-    if (user.password !== hashPassword(currentPassword))
-      return { success: false, error: "Contraseña actual incorrecta" };
-    user.password = hashPassword(newPassword);
-    this._saveUsers(users);
-    return { success: true };
-  }
-
-  toggleMfa(enable) {
-    if (!this.isLoggedIn()) return { success: false };
-    const users = this._getUsers();
-    const idx = users.findIndex((u) => u.id === this.currentUser.id);
-    users[idx].mfaEnabled = enable;
-    this._saveUsers(users);
-    this.currentUser.mfaEnabled = enable;
-    localStorage.setItem("lg_current_user", JSON.stringify(this.currentUser));
-    return { success: true, mfaEnabled: enable };
-  }
-
-  updatePreferences(prefs) {
-    if (!this.isLoggedIn()) return { success: false };
-    const users = this._getUsers();
-    const idx = users.findIndex((u) => u.id === this.currentUser.id);
-    if (idx !== -1) {
-      Object.assign(users[idx], prefs);
-      this._saveUsers(users);
+  async changePassword(currentPassword, newPassword) {
+    if (USE_BACKEND) {
+      try {
+        const res = await fetch(`${API_BASE}/users/change-password`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+          body: JSON.stringify({ currentPassword, newPassword }),
+        });
+        const json = await res.json();
+        if (!res.ok) return { success: false, error: json.error };
+        return { success: true };
+      } catch {
+        return { success: false, error: "Error de conexión." };
+      }
     }
-    Object.assign(this.currentUser, prefs);
-    localStorage.setItem("lg_current_user", JSON.stringify(this.currentUser));
+
+    const users = this._getUsers();
+    const user = users.find((u) => u.id === this.currentUser?.id);
+    if (!user) return { success: false, error: "Usuario no encontrado." };
+    if (user.password !== hashPassword(currentPassword))
+      return { success: false, error: "Contraseña actual incorrecta." };
+    user.password = hashPassword(newPassword);
+    this._saveUsers(users.map((u) => (u.id === user.id ? user : u)));
     return { success: true };
   }
 
-  // ── RBAC ─────────────────────────────────────────────────────────────────────
+  // ── Toggle MFA ───────────────────────────────────────────────────────────────
+
+  async toggleMfa(enable) {
+    if (USE_BACKEND) {
+      try {
+        const res = await fetch(`${API_BASE}/users/toggle-mfa`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+          body: JSON.stringify({ enable }),
+        });
+        const json = await res.json();
+        if (!res.ok) return { success: false, error: json.error };
+        if (this.currentUser) {
+          this.currentUser.mfaEnabled = enable;
+          localStorage.setItem(
+            "lg_current_user",
+            JSON.stringify(this.currentUser),
+          );
+        }
+        return { success: true, mfaEnabled: enable };
+      } catch {
+        return { success: false, error: "Error de conexión." };
+      }
+    }
+
+    const users = this._getUsers();
+    const user = users.find((u) => u.id === this.currentUser?.id);
+    if (!user) return { success: false, error: "Usuario no encontrado." };
+    user.mfaEnabled = enable;
+    this._saveUsers(users.map((u) => (u.id === user.id ? user : u)));
+    if (this.currentUser) {
+      this.currentUser.mfaEnabled = enable;
+      localStorage.setItem("lg_current_user", JSON.stringify(this.currentUser));
+    }
+    return { success: true };
+  }
+
+  // ── Sesiones activas ─────────────────────────────────────────────────────────
+
+  getActiveSessions() {
+    if (USE_BACKEND) {
+      return [];
+    }
+    const sessions = JSON.parse(localStorage.getItem("lg_sessions") || "[]");
+    return sessions.filter(
+      (s) => s.userId === this.currentUser?.id && s.isActive,
+    );
+  }
+
+  async fetchActiveSessions() {
+    if (!USE_BACKEND) return this.getActiveSessions();
+    try {
+      const res = await fetch(`${API_BASE}/auth/sessions`, {
+        headers: { Authorization: `Bearer ${this.accessToken}` },
+      });
+      const json = await res.json();
+      return json.sessions || [];
+    } catch {
+      return [];
+    }
+  }
+
+  revokeSession(sessionId) {
+    if (USE_BACKEND) {
+      fetch(`${API_BASE}/auth/sessions/${sessionId}/revoke`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${this.accessToken}` },
+      }).catch(() => {});
+      return;
+    }
+    const sessions = JSON.parse(localStorage.getItem("lg_sessions") || "[]");
+    const updated = sessions.map((s) =>
+      s.id === sessionId ? { ...s, isActive: false } : s,
+    );
+    localStorage.setItem("lg_sessions", JSON.stringify(updated));
+  }
+
+  // ── Preferencias ─────────────────────────────────────────────────────────────
+
+  async updatePreferences(prefs) {
+    if (USE_BACKEND) {
+      try {
+        const res = await fetch(`${API_BASE}/users/preferences`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+          body: JSON.stringify(prefs),
+        });
+        const json = await res.json();
+        if (!res.ok) return { success: false, error: json.error };
+        if (this.currentUser) {
+          Object.assign(this.currentUser, prefs);
+          localStorage.setItem(
+            "lg_current_user",
+            JSON.stringify(this.currentUser),
+          );
+        }
+        return { success: true };
+      } catch {
+        return { success: false, error: "Error de conexión." };
+      }
+    }
+
+    const users = this._getUsers();
+    const user = users.find((u) => u.id === this.currentUser?.id);
+    if (user) {
+      Object.assign(user, prefs);
+      this._saveUsers(users.map((u) => (u.id === user.id ? user : u)));
+    }
+    if (this.currentUser) {
+      Object.assign(this.currentUser, prefs);
+      localStorage.setItem("lg_current_user", JSON.stringify(this.currentUser));
+    }
+    return { success: true };
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+
+  isLoggedIn() {
+    return !!this.currentUser && this.isAuthenticated;
+  }
 
   hasRole(role) {
-    return this.currentUser?.role === role;
+    const roles = { admin: 3, editor: 2, usuario: 1 };
+    const userRole = this.currentUser?.role || "usuario";
+    return (roles[userRole] || 0) >= (roles[role] || 0);
   }
-  hasPermission(perm) {
-    const map = {
-      admin: [
-        "read",
-        "write",
-        "delete",
-        "manage_users",
-        "manage_roles",
-        "view_sessions",
-      ],
-      editor: ["read", "write", "manage_catalog"],
-      usuario: ["read", "manage_own_lists"],
-    };
-    return (map[this.currentUser?.role || "usuario"] || []).includes(perm);
-  }
+
   isAdmin() {
-    return this.hasRole("admin");
+    return this.currentUser?.role === "admin";
   }
-  isEditor() {
-    return this.hasRole("editor");
+
+  hasPermission(permission) {
+    const perms = {
+      admin: [
+        "manage_users",
+        "manage_content",
+        "view_logs",
+        "edit_content",
+        "view_content",
+      ],
+      editor: ["edit_content", "view_content", "manage_content"],
+      usuario: ["view_content"],
+    };
+    return (
+      perms[this.currentUser?.role || "usuario"]?.includes(permission) || false
+    );
   }
-  isLoggedIn() {
-    return this.isAuthenticated && !!this.currentUser;
+
+  isGuest() {
+    return !this.currentUser;
   }
   getCurrentUser() {
     return this.currentUser;
