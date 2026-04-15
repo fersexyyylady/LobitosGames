@@ -19,14 +19,22 @@ const analyticsService = require("./routes/microservices/analyticsService");
 
 const app = express();
 
-// ── Logs de acceso a archivo ──────────────────────────────────────────────────
-const logsDir = path.join(__dirname, "logs");
-if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir);
-const accessLogStream = fs.createWriteStream(path.join(logsDir, "access.log"), {
-  flags: "a",
-});
-app.use(morgan("combined", { stream: accessLogStream }));
-app.use(morgan("dev")); // también en consola
+// ── Logs de acceso ──────────────────────────────────────────────────────────
+if (process.env.NODE_ENV === "development") {
+  // Esto solo pasará en tu compu
+  const logsDir = path.join(__dirname, "logs");
+  if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir);
+  const accessLogStream = fs.createWriteStream(
+    path.join(logsDir, "access.log"),
+    {
+      flags: "a",
+    },
+  );
+  app.use(morgan("combined", { stream: accessLogStream }));
+}
+
+// Esto pasará SIEMPRE (en consola), que es lo que Railway sí te deja ver
+app.use(morgan("dev"));
 
 // ── Helmet (headers de seguridad) ─────────────────────────────────────────────
 app.use(
